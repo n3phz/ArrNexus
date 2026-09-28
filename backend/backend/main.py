@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.health import router as health_router
 from backend.api.items import router as items_router
 from backend.api.events import router as events_router
+from backend.api.sse import router as sse_router
 from backend.api.services import router as services_router
 from backend.api.webhooks import router as webhooks_router
 from backend.api.backfill import router as backfill_router
@@ -72,6 +73,7 @@ def create_application() -> FastAPI:
     app.include_router(health_router)
     app.include_router(items_router)
     app.include_router(events_router)
+    app.include_router(sse_router)
     app.include_router(services_router)
     app.include_router(webhooks_router)
     app.include_router(backfill_router)

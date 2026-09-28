@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from './services/api';
-import { MediaItem, ServiceStatus } from './types';
+import { MediaItem, ServiceStatus, SseEvent } from './types';
 import SummaryCards from './components/SummaryCards';
 import PipelineList from './components/PipelineList';
 import ServiceStatusBadge from './components/ServiceStatus';
@@ -10,11 +10,59 @@ function App() {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sseConnected, setSseConnected] = useState(false);
+  const sseEventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      sseEventSourceRef.current?.close();
+    };
+  }, []);
+
+  // Setup SSE connection
+  useEffect(() => {
+    const connectSSE = () => {
+      const eventSource = new EventSource('/api/events/stream');
+      sseEventSourceRef.current = eventSource;
+
+      eventSource.addEventListener('connected', (event: MessageEvent) => {
+        setSseConnected(true);
+        console.log('SSE connected:', event.data);
+      });
+
+      eventSource.addEventListener('media_event', (event: MessageEvent) => {
+        const sseEvent: SseEvent = JSON.parse(event.data);
+        console.log('Received SSE event:', sseEvent);
+        // Handle incoming events - could update specific items or show notifications
+        // For now, just log and optionally refresh items
+        setItems(prev => {
+          // Avoid duplicate updates by checking if event already exists
+          const exists = prev.some(item => item.id === sseEvent.media_id);
+          if (exists) return prev;
+          return [...prev, { id: sseEvent.media_id || '', ...sseEvent } as MediaItem];
+        });
+      });
+
+      eventSource.addEventListener('heartbeat', () => {
+        // Heartbeat received, connection is alive
+      });
+
+      eventSource.addEventListener('error', (event: any) => {
+        console.error('SSE error:', event);
+        setSseConnected(false);
+        // Attempt reconnect after 5 seconds
+        setTimeout(connectSSE, 5000);
+      });
+    };
+
+    connectSSE();
+
+    return () => {
+      sseEventSourceRef.current?.close();
+    };
   }, []);
 
   const loadData = async () => {

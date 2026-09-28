@@ -155,3 +155,15 @@ export interface SummaryCounts {
   completed_today: number;
   failed: number;
 }
+
+export interface SseEvent {
+  event_id?: string;
+  event_type: string;
+  source_service: string;
+  media_id: string;
+  timestamp?: string;
+  title: string;
+  media_type: string;
+  provenance: string;
+  metadata?: Record<string, any>;
+}

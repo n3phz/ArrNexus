@@ -92,6 +92,20 @@ class RawEvent:
     status: EventStatus = EventStatus.COMPLETED
     error_message: Optional[str] = None
     error_details: Optional[str] = None
+    
+    def to_sse_data(self) -> Dict[str, Any]:
+        """Serialize event to SSE-compatible format."""
+        return {
+            "event_id": str(self.correlation_key) + "_" + self.event_type.value if self.correlation_key else None,
+            "event_type": self.event_type.value,
+            "source_service": self.source_service.value,
+            "media_id": self.correlation_key or self.media_identifier,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "title": self.title,
+            "media_type": self.media_type.value,
+            "provenance": "polling",
+            "metadata": self.normalized_metadata or {}
+        }
 
 
 @dataclass

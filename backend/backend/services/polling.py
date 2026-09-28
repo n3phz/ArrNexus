@@ -1,8 +1,9 @@
 """Polling service for fetching events from ARR services."""
 import logging
+import json
 import time
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from queue import Queue
 from threading import Thread, Lock
@@ -11,6 +12,7 @@ from backend.adapters.base import ServiceAdapter, SourceService, RawEvent
 from backend.adapters import get_all_adapters
 from backend.services.events import EventService
 from backend.database.base import SessionLocal
+from backend.api.sse import sse_tracker
 
 logger = logging.getLogger("arr-control.services.polling")
 
@@ -25,11 +27,18 @@ class PollingService:
         self.poll_thread: Optional[Thread] = None
         self.last_poll_times: Dict[SourceService, datetime] = {}
         self._lock = Lock()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
     
     def start(self) -> None:
         """Start the polling loop."""
         if self.running:
             return
+        
+        # Capture the event loop for cross-thread async operations
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
         
         self.running = True
         self.poll_thread = Thread(target=self._poll_loop, daemon=True)
@@ -71,14 +80,42 @@ class PollingService:
             db = SessionLocal()
             try:
                 event_service = EventService(db)
-                event_service.ingest_events(events)
-                logger.debug(f"Processed {len(events)} events from {adapter.service_name.value}")
+                new_events = event_service.ingest_events(events)
+                logger.debug(f"Processed {len(new_events)} events from {adapter.service_name.value}")
+                
+                # Broadcast new events via SSE
+                self._broadcast_events(new_events)
             finally:
                 db.close()
             
             # Update last poll time
             with self._lock:
                 self.last_poll_times[adapter.service_name] = datetime.utcnow()
+    
+    def _broadcast_events(self, events: List[Any]) -> None:
+        """Broadcast newly ingested events to SSE clients."""
+        if not sse_tracker.get_count():
+            return
+        
+        for event in events:
+            if hasattr(event, 'to_sse_data'):
+                sse_data = event.to_sse_data()
+            else:
+                # Fallback serialization
+                sse_data = {
+                    "event_id": getattr(event, 'id', None),
+                    "event_type": getattr(event, 'event_type', None),
+                    "media_id": getattr(event, 'correlation_key', None),
+                    "timestamp": getattr(event, 'timestamp', None).isoformat() if getattr(event, 'timestamp', None) else None,
+                    "provenance": "polling"
+                }
+            
+            # Send via asyncio loop
+            if self._loop:
+                asyncio.run_coroutine_threadsafe(
+                    sse_tracker.broadcast(sse_data),
+                    self._loop
+                )
     
     def force_poll(self) -> Dict[str, int]:
         """Force immediate polling of all services.
