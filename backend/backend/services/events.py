@@ -2,7 +2,7 @@
 import json
 import logging
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from backend.adapters.base import RawEvent, SourceService
@@ -10,6 +10,19 @@ from backend.models import RawEventModel, MediaItemModel, EventType as DBEventTy
 from backend.correlation.engine import get_correlation_engine, CorrelationResult
 
 logger = logging.getLogger("arr-control.services.events")
+
+
+def _naive_utc(ts: datetime) -> datetime:
+    """Convert an aware or naive datetime to a naive-UTC datetime.
+
+    qBittorrent/Sonarr/Radarr webhooks and API responses can be offset-aware
+    (e.g. ISO-8601 with Z suffix). The DB column is naive. Normalizing to
+    naive-UTC keeps comparisons safe and avoids 'can't compare offset-naive
+    and offset-aware' crashes.
+    """
+    if ts.tzinfo is not None:
+        return ts.astimezone(timezone.utc).replace(tzinfo=None)
+    return ts
 
 
 class EventService:
@@ -29,7 +42,7 @@ class EventService:
         
         # Create database record
         db_event = RawEventModel(
-            timestamp=event.timestamp,
+            timestamp=_naive_utc(event.timestamp),
             source_service=DBSourceService(event.source_service.value),
             event_type=DBEventType(event.event_type.value),
             media_type=DBMediaType(event.media_type.value),

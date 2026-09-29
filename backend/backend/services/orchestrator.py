@@ -1,12 +1,27 @@
 """Operational intelligence service for attention classification."""
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from backend.adapters.base import SourceService, EventType, EvidenceBoundary
 from backend.correlation.engine import CorrelationResult
 
 logger = logging.getLogger("arr-control.services.orchestrator")
+
+
+def _norm_ts(ts: Optional[datetime]) -> datetime:
+    """Normalize any event timestamp to naive-UTC so it can be compared with
+    datetime.utcnow(). Strips tzinfo (converting aware datetimes to UTC first).
+    """
+    if ts is None:
+        return datetime.utcnow()
+    if ts.tzinfo is not None:
+        return ts.astimezone(timezone.utc).replace(tzinfo=None)
+    return ts
+
+
+def _seconds_since(ts: Optional[datetime]) -> float:
+    return (_norm_ts(ts) and (datetime.utcnow() - _norm_ts(ts)).total_seconds()) or 0.0
 
 
 class AttentionLevel:
@@ -203,7 +218,8 @@ class Orchestrator:
                     latest_progress_time = event.timestamp
 
             if latest_progress is not None and latest_progress_time:
-                time_since_last_progress = datetime.utcnow() - latest_progress_time
+                time_since_last_progress = _norm_ts(latest_progress_time)
+                time_since_last_progress = datetime.utcnow() - time_since_last_progress
 
                 # If progress hasn't changed and is not complete, flag as possible stall
                 if latest_progress < 100 and time_since_last_progress > self.STALL_DURATION_THRESHOLD:
@@ -225,7 +241,7 @@ class Orchestrator:
                     break
 
             if grabbed_event:
-                time_since_grab = datetime.utcnow() - grabbed_event.timestamp
+                time_since_grab = datetime.utcnow() - _norm_ts(grabbed_event.timestamp)
                 if time_since_grab > self.DOWNLOAD_START_TIMEOUT:
                     attention = AttentionLevel.POSSIBLE
                     severity = "medium"
@@ -287,7 +303,7 @@ class Orchestrator:
             search_events = [e for e in item.events if e.event_type == EventType.SEARCH_STARTED]
             if search_events:
                 last_search = search_events[-1]
-                time_since_search = datetime.utcnow() - last_search.timestamp
+                time_since_search = datetime.utcnow() - _norm_ts(last_search.timestamp)
 
                 if time_since_search > self.DEFAULT_TIMEOUT:
                     attention = AttentionLevel.POSSIBLE

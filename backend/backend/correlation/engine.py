@@ -1,7 +1,7 @@
 """Correlation engine for matching events across services."""
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.adapters.base import RawEvent, SourceService, MediaType, EventType, EvidenceBoundary
 from backend.correlation.matching import _titles_overlap
@@ -9,11 +9,27 @@ from backend.correlation.matching import _titles_overlap
 logger = logging.getLogger("arr-control.correlation")
 
 
+def _norm_ts(ts: Optional[datetime]) -> Optional[datetime]:
+    """Normalize any event timestamp to naive-UTC so aware and naive values
+    can be safely mixed in a single sorted timeline.
+    """
+    if ts is None:
+        return None
+    if ts.tzinfo is not None:
+        return ts.astimezone(timezone.utc).replace(tzinfo=None)
+    return ts
+
+
 class CorrelationResult:
     """Result of correlating events into a media item timeline."""
 
     def __init__(self, correlation_key: str, events: List[RawEvent]):
         self.correlation_key = correlation_key
+        # Normalize event timestamps to naive-UTC on intake so that offset-aware
+        # service payloads (e.g. ISO-8601 'Z' suffix) never mix with naive values
+        # in the same sorted timeline.
+        for e in events:
+            e.timestamp = _norm_ts(e.timestamp)
         self.events = sorted(events, key=lambda e: e.timestamp)
         self.media_type = events[0].media_type if events else MediaType.MOVIE
         self.media_identifier = events[0].media_identifier if events else ""

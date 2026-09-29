@@ -36,8 +36,18 @@ def list_items(
     
     # Apply sorting
     reverse = sort_order.lower() == "desc"
+
+    def _ts_key(v):
+        """Return a naive-UTC sortable datetime for a possibly-aware timestamp."""
+        if v is None:
+            return None
+        if v.tzinfo is not None:
+            from datetime import timezone
+            return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
+
     if sort_by == "last_event":
-        items.sort(key=lambda x: x.last_event.timestamp if x.last_event else x.first_seen_at, reverse=reverse)
+        items.sort(key=lambda x: _ts_key(x.last_event.timestamp if x.last_event else x.first_seen_at) or _ts_key(x.first_seen_at) or x.created_at, reverse=reverse)
     elif sort_by == "title":
         items.sort(key=lambda x: x.title.lower(), reverse=reverse)
     elif sort_by == "state":
@@ -62,8 +72,11 @@ def list_items(
             "current_service": item.current_service.value if item.current_service else None,
             "last_event_at": item.last_event.timestamp.isoformat() if item.last_event else None,
             "next_expected_state": item.next_expected_state.value if item.next_expected_state else None,
-            "event_count": item.event_count,
+            "event_count": len(item.events),
             "first_seen_at": item.events[0].timestamp.isoformat() if item.events else None,
+            "confidence": item.confidence,
+            "confidence_basis": item.confidence_basis,
+            "evidence_boundary": item.evidence_boundary.value,
         }
         for item in items
     ]
