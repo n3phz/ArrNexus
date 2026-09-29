@@ -1,199 +1,72 @@
-type EvidenceBoundaryValue = 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+import { TimelineEvent } from '../types';
+import EvidenceBadge from './EvidenceBadge';
+import EmptyState from './EmptyState';
 
-interface TimelineProps {
-  events: Array<{
-    timestamp: string;
-    source: string;
-    event_type: string;
-    error_message?: string;
-    normalized_metadata?: Record<string, any>;
-    ingestion?: 'webhook' | 'polling';
-    evidence_boundary?: EvidenceBoundaryValue;
-  }>;
+interface Props {
+  events: TimelineEvent[];
 }
 
-const EVIDENCE_TOOLTIPS: Record<EvidenceBoundaryValue, string> = {
-  OBSERVED: 'Directly observed from an external service',
-  CORRELATED: 'Relationship established from observed evidence',
-  INFERRED: 'Derived conclusion based on available evidence',
-  UNKNOWN: 'Insufficient evidence to establish a conclusion',
-  BLOCKED: 'Required evidence could not be obtained (external dependency unavailable)',
-  SYNTHETIC: 'Test/synthetic data, not from live environment',
-};
+function timeOf(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts;
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
 
-const EVIDENCE_COLORS: Record<EvidenceBoundaryValue, string> = {
-  OBSERVED: '#00b894',
-  CORRELATED: '#fdcb6e',
-  INFERRED: '#74b9ff',
-  UNKNOWN: '#d63031',
-  BLOCKED: '#636e72',
-  SYNTHETIC: '#8e44ad',
-};
-
-export const Timeline: React.FC<TimelineProps> = ({ events }) => {
-  const formatTime = (timestamp: string) => {
+function parseMeta(meta?: Record<string, any> | string): Record<string, any> | null {
+  if (!meta) return null;
+  if (typeof meta === 'string') {
     try {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      return JSON.parse(meta);
     } catch {
-      return timestamp;
+      return null;
     }
-  };
+  }
+  return meta;
+}
 
-  const getEvidenceBadge = (boundary?: EvidenceBoundaryValue) => {
-    if (!boundary) return null;
+/**
+ * Evidence chain. Reads as a chain of observations, each carrying its own
+ * evidence boundary, rather than as a generic activity feed.
+ */
+export const Timeline: React.FC<Props> = ({ events }) => {
+  if (!events || events.length === 0) {
     return (
-      <span
-        style={{
-          marginLeft: '0.5rem',
-          padding: '0.125rem 0.375rem',
-          borderRadius: '0.25rem',
-          fontSize: '0.65rem',
-          fontWeight: 'bold',
-          background: EVIDENCE_COLORS[boundary],
-          color: '#fff',
-          textTransform: 'uppercase',
-          cursor: 'help',
-          border: 'none',
-        }}
-        title={EVIDENCE_TOOLTIPS[boundary] || boundary}
-      >
-        {boundary.charAt(0)}
-      </span>
+      <EmptyState title="No events recorded">
+        No observations have been captured for this item yet. The timeline fills in as services
+        report state.
+      </EmptyState>
     );
-  };
+  }
 
-  const getEventIcon = (eventType: string) => {
-    const icons: Record<string, string> = {
-      wanted: 'W',
-      search_started: 'S',
-      release_grabbed: 'G',
-      download_started: '↓',
-      download_progress: '↓',
-      download_completed: '✓',
-      download_failed: '✗',
-      import_started: 'I',
-      import_completed: '✓',
-      import_failed: '✗',
-      available: '✓',
-      stuck: '⏸',
-      webhook_test: 'T',
-      application_update: 'U',
-      health_issue: '⚠',
-      health_restored: '✓',
-      indexer_search: '🔍',
-      indexer_search_completed: '✓',
-      indexer_search_failed: '✗',
-      release_rejected: '⊘',
-      storage_estimate: '📊',
-      storage_admit: '✅',
-      storage_release: '🔓',
-      storage_reconcile: '🔄',
-      security_scan: '🔍',
-      security_allowed: '✅',
-      security_blocked: '🚫',
-      security_quarantined: '🔒',
-      security_alert: '⚠',
-      torrent_associated: '🔗',
-      torrent_unreserved: '❌',
-    };
-    return icons[eventType] || '•';
-  };
-
-  const getEventColor = (eventType: string) => {
-    const colors: Record<string, string> = {
-      wanted: '#3742fa',
-      search_started: '#5f27cd',
-      release_grabbed: '#0abde3',
-      download_started: '#10ac84',
-      download_progress: '#00b894',
-      download_completed: '#00cec9',
-      download_failed: '#d63031',
-      import_started: '#fdcb6e',
-      import_completed: '#00b894',
-      import_failed: '#e17055',
-      available: '#6c5ce7',
-      stuck: '#636e72',
-      webhook_test: '#74b9ff',
-      application_update: '#a29bfe',
-      health_issue: '#d63031',
-      health_restored: '#00b894',
-      indexer_search: '#55efc4',
-      indexer_search_completed: '#00b894',
-      indexer_search_failed: '#d63031',
-      release_rejected: '#fd79a8',
-      storage_estimate: '#74b9ff',
-      storage_admit: '#00b894',
-      storage_release: '#fdcb6e',
-      storage_reconcile: '#a29bfe',
-      security_scan: '#74b9ff',
-      security_allowed: '#00b894',
-      security_blocked: '#d63031',
-      security_quarantined: '#e17055',
-      security_alert: '#d63031',
-      torrent_associated: '#0abde3',
-      torrent_unreserved: '#636e72',
-    };
-    return colors[eventType] || '#00d4ff';
-  };
-
-  const getIngestionBadge = (ingestion?: 'webhook' | 'polling') => {
-    if (!ingestion) return null;
-    return (
-      <span
-        style={{
-          marginLeft: '0.5rem',
-          padding: '0.125rem 0.375rem',
-          borderRadius: '0.25rem',
-          fontSize: '0.65rem',
-          fontWeight: 'bold',
-          background: ingestion === 'webhook' ? '#00b894' : '#74b9ff',
-          color: '#fff',
-          textTransform: 'uppercase',
-        }}
-      >
-        {ingestion}
-      </span>
-    );
-  };
+  const ordered = [...events].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
 
   return (
-    <div className="timeline">
-      <h3>Timeline</h3>
-      {events.length === 0 ? (
-        <p style={{ color: '#666', fontSize: '0.875rem' }}>No events recorded</p>
-      ) : (
-        events.map((event, index) => (
-          <div key={index} className="timeline-event">
-            <span className="timeline-time">{formatTime(event.timestamp)}</span>
-            <div
-              className="timeline-icon"
-              style={{ background: getEventColor(event.event_type), color: '#fff' }}
-            >
-              {getEventIcon(event.event_type)}
-            </div>
-            <div className="timeline-content">
-              <div className="event-type">
-                {event.event_type.replace(/_/g, ' ')}
-                {getEvidenceBadge(event.evidence_boundary)}
-                {getIngestionBadge(event.ingestion)}
-              </div>
-              <div className="event-source">{event.source}</div>
-              {event.error_message && (
-                <div className="error-message">{event.error_message}</div>
+    <div className="chain" role="list">
+      {ordered.map((e, i) => {
+        const meta = parseMeta(e.normalized_metadata);
+        const ingestion = e.ingestion ?? meta?.ingestion;
+        return (
+          <div className="chain-row" role="listitem" key={`${e.timestamp}-${i}`}>
+            <span className="chain-time" title={new Date(e.timestamp).toLocaleString()}>
+              {timeOf(e.timestamp)}
+            </span>
+            <span className="chain-src">
+              {e.source}
+              {ingestion && (
+                <span className="faint" title={`Ingested via ${ingestion}`}>
+                  {' '}
+                  / {ingestion}
+                </span>
               )}
-              {event.normalized_metadata && (
-                <details style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>
-                  <summary style={{ color: '#888', cursor: 'pointer' }}>Metadata</summary>
-                  <pre style={{ marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(event.normalized_metadata, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </div>
+            </span>
+            <span className="chain-event">{e.event_type.replace(/_/g, ' ')}</span>
+            <EvidenceBadge boundary={e.evidence_boundary} solid />
+            {e.error_message && <div className="chain-err">{e.error_message}</div>}
           </div>
-        ))
-      )}
+        );
+      })}
     </div>
   );
 };

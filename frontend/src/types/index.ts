@@ -1,3 +1,17 @@
+export type EvidenceBoundary =
+  | 'OBSERVED'
+  | 'CORRELATED'
+  | 'INFERRED'
+  | 'UNKNOWN'
+  | 'BLOCKED'
+  | 'SYNTHETIC';
+
+export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type AttentionLevel = 'none' | 'possible' | 'required' | 'blocked' | 'synthetic';
+
+export type Severity = 'high' | 'medium' | 'low' | 'none';
+
 export interface MediaItem {
   id: string;
   media_type: 'movie' | 'episode';
@@ -14,8 +28,9 @@ export interface MediaItem {
   next_expected_state?: string;
   event_count: number;
   first_seen_at?: string;
-  confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  confidence?: Confidence;
+  evidence_boundary?: EvidenceBoundary;
+  confidence_basis?: string;
   download_attempts?: DownloadAttempt[];
   ingestion_sources?: ('webhook' | 'polling')[];
   state?: string; // For PipelineRow compatibility
@@ -36,8 +51,9 @@ export interface PipelineRow {
   tmdb_id?: string;
   imdb_id?: string;
   current_state: string;
-  confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  confidence?: Confidence;
+  evidence_boundary?: EvidenceBoundary;
+  confidence_basis?: string;
   download_attempts?: DownloadAttempt[];
   ingestion_sources?: ('webhook' | 'polling')[];
   first_seen_at?: string;
@@ -104,7 +120,7 @@ export interface GuardarrEvent {
   owner?: string;
   torrent_tag?: string;
   idempotency_key?: string;
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  evidence_boundary?: EvidenceBoundary;
 }
 
 export interface Event {
@@ -120,8 +136,9 @@ export interface Event {
   status: string;
   error_message?: string;
   ingestion?: 'webhook' | 'polling';
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  evidence_boundary?: EvidenceBoundary;
   confidence_basis?: string;
+  normalized_metadata?: Record<string, any> | string;
 }
 
 export interface ServiceStatus {
@@ -129,7 +146,8 @@ export interface ServiceStatus {
   status: string;
   version?: string;
   error?: string;
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  details?: Record<string, any>;
+  evidence_boundary?: EvidenceBoundary;
 }
 
 export interface TimelineEvent {
@@ -140,13 +158,14 @@ export interface TimelineEvent {
   error_message?: string;
   normalized_metadata?: Record<string, any>;
   ingestion?: 'webhook' | 'polling';
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  evidence_boundary?: EvidenceBoundary;
   confidence_basis?: string;
 }
 
 export interface ItemDetail extends MediaItem {
   timeline: TimelineEvent[];
   last_event?: TimelineEvent;
+  next_expected_state?: string;
 }
 
 export interface Explanation {
@@ -155,7 +174,7 @@ export interface Explanation {
   reason: string;
   evidence: string[];
   timeline_summary: string;
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  evidence_boundary?: EvidenceBoundary;
   confidence_basis?: string;
 }
 
@@ -175,7 +194,53 @@ export interface SseEvent {
   title: string;
   media_type: string;
   provenance: string;
-  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  evidence_boundary?: EvidenceBoundary;
   confidence_basis?: string;
   metadata?: Record<string, any>;
+}
+
+/* ------------------------------------------------------------------ *
+ * Phase 4B: operational attention
+ * Mirrors backend Orchestrator output (backend/backend/services/orchestrator.py)
+ * ------------------------------------------------------------------ */
+
+export interface AttentionItemRef {
+  id: string;
+  title: string;
+  media_type: string;
+  current_state: string;
+  last_event_at?: string | null;
+  event_count: number;
+}
+
+export interface AttentionItem {
+  attention_level: AttentionLevel;
+  reason: string;
+  evidence: string[];
+  evidence_boundary: EvidenceBoundary;
+  confidence_basis?: string | null;
+  requires_attention: boolean;
+  severity?: Severity;
+  state?: string;
+  item: AttentionItemRef;
+}
+
+export interface AttentionStats {
+  total_attention: number;
+  required: number;
+  possible: number;
+  blocked: number;
+  high_severity: number;
+  medium_severity: number;
+  items_count: number;
+}
+
+export interface ActivityStats {
+  period_days: number;
+  by_source: Record<string, number>;
+  by_type: Record<string, number>;
+  failed: number;
+  stuck: number;
+  today: number;
+  total: number;
 }

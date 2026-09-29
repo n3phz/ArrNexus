@@ -1,232 +1,202 @@
-/** Activity page component. */
-import { useState, useEffect } from 'react';
-import { Event } from '../types';
+import { useEffect, useState } from 'react';
+import { api } from '../services/api';
+import { ActivityStats, Event } from '../types';
+import EmptyState from '../components/EmptyState';
+import EvidenceBadge from '../components/EvidenceBadge';
+import StateBadge from '../components/StateBadge';
+
+const SOURCES = [
+  { key: '', label: 'All services' },
+  { key: 'sonarr', label: 'Sonarr' },
+  { key: 'radarr', label: 'Radarr' },
+  { key: 'qbittorrent', label: 'qBittorrent' },
+  { key: 'prowlarr', label: 'Prowlarr' },
+  { key: 'guardarr', label: 'Guardarr' },
+];
+
+function when(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts;
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 interface Props {
-  days?: number;
+  refreshKey: number;
 }
 
-function ActivityPage({ days = 7 }: Props) {
+/** Activity — observation history across services, each row evidence-labelled. */
+export const Activity: React.FC<Props> = ({ refreshKey }) => {
   const [events, setEvents] = useState<Event[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({
-    source: '',
-    eventType: '',
-    stuckOnly: false,
-    failedOnly: false,
-    search: ''
-  });
+  const [stats, setStats] = useState<ActivityStats | null>(null);
+  const [source, setSource] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-
-  const loadEvents = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        days: String(days),
-        limit: '100',
-        offset: String(page * 100),
-        ...(filters.source && { source_service: filters.source }),
-        ...(filters.eventType && { event_type: filters.eventType }),
-        ...(filters.stuckOnly && { stuck_only: 'true' }),
-        ...(filters.failedOnly && { failed_only: 'true' }),
-        ...(filters.search && { search: filters.search }),
-      });
-      const response = await fetch(`/api/activity?${params}`);
-      const data = await response.json();
-      setEvents(data);
-      
-      // Load stats
-      const statsRes = await fetch(`/api/activity/stats?days=${days}`);
-      const statsData = await statsRes.json();
-      setStats(statsData);
-      
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load activity');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadEvents();
-  }, [days, page, filters]);
-
-  const formatTime = (timestamp: string) => {
-    try {
-      const date = new Date(timestamp);
-      return date.toLocaleString();
-    } catch {
-      return timestamp;
-    }
-  };
-
-  const getEventColor = (eventType: string) => {
-    const colors: Record<string, string> = {
-      wanted: '#3742fa',
-      release_grabbed: '#0abde3',
-      download_started: '#10ac84',
-      download_progress: '#00b894',
-      download_completed: '#00cec9',
-      download_failed: '#d63031',
-      import_started: '#fdcb6e',
-      import_completed: '#00b894',
-      import_failed: '#e17055',
-      available: '#6c5ce7',
-      stuck: '#636e72',
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      api.getActivity({ limit: 100, offset: page * 100, days: 7, source_service: source, search }),
+      api.getActivityStats(7),
+    ])
+      .then(([ev, st]) => {
+        if (cancelled) return;
+        setEvents(ev);
+        setStats(st);
+        setError(null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load activity');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-    return colors[eventType] || '#00d4ff';
-  };
-
-  if (error) {
-    return (
-      <div className="error">
-        <h2>Error</h2>
-        <p>{error}</p>
-      </div>
-    );
-  }
+  }, [page, source, search, refreshKey]);
 
   return (
-    <div className="activity-page">
-      <h1>Activity History</h1>
-      
+    <div className="stack">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Activity</h1>
+          <p className="page-sub">
+            Raw observations over the last 7 days. Events are recorded as observed; relationships
+            between them are established elsewhere.
+          </p>
+        </div>
+      </div>
+
       {stats && (
-        <div className="activity-stats">
-          <div className="stat-card">
+        <div className="stats">
+          <div className="stat">
+            <div className="stat-value">{stats.total}</div>
+            <div className="stat-label">events / 7d</div>
+          </div>
+          <div className="stat">
             <div className="stat-value">{stats.today}</div>
-            <div className="stat-label">Today</div>
+            <div className="stat-label">today</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-value">{stats.by_source?.sonarr || 0}</div>
-            <div className="stat-label">Sonarr Events</div>
+          <div className="stat">
+            <div className="stat-value" data-tone="danger">
+              {stats.failed}
+            </div>
+            <div className="stat-label">failed</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-value">{stats.by_source?.radarr || 0}</div>
-            <div className="stat-label">Radarr Events</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value">{stats.by_source?.qbittorrent || 0}</div>
-            <div className="stat-label">qBittorrent Events</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value">{stats.by_source?.prowlarr || 0}</div>
-            <div className="stat-label">Prowlarr Events</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value" style={{ color: '#d63031' }}>{stats.failed}</div>
-            <div className="stat-label">Failed</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-value" style={{ color: '#636e72' }}>{stats.stuck}</div>
-            <div className="stat-label">Stuck</div>
+          <div className="stat">
+            <div className="stat-value" data-tone="warn">
+              {stats.stuck}
+            </div>
+            <div className="stat-label">stuck</div>
           </div>
         </div>
       )}
-      
-      <div className="activity-filters">
+
+      <div className="filters">
+        <select
+          className="select"
+          value={source}
+          onChange={(e) => {
+            setSource(e.target.value);
+            setPage(0);
+          }}
+          aria-label="Filter by service"
+        >
+          {SOURCES.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
+        </select>
         <input
-          type="text"
-          placeholder="Search title..."
-          value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          className="input"
+          placeholder="Search titles…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
+          aria-label="Search activity"
         />
-        <select
-          value={filters.source}
-          onChange={(e) => setFilters({ ...filters, source: e.target.value })}
-        >
-          <option value="">All Services</option>
-          <option value="sonarr">Sonarr</option>
-          <option value="radarr">Radarr</option>
-          <option value="qbittorrent">qBittorrent</option>
-          <option value="prowlarr">Prowlarr</option>
-        </select>
-        <select
-          value={filters.eventType}
-          onChange={(e) => setFilters({ ...filters, eventType: e.target.value })}
-        >
-          <option value="">All Events</option>
-          <option value="wanted">Wanted</option>
-          <option value="release_grabbed">Grabbed</option>
-          <option value="download_started">Download Started</option>
-          <option value="download_progress">Downloading</option>
-          <option value="download_completed">Download Completed</option>
-          <option value="download_failed">Download Failed</option>
-          <option value="import_started">Import Started</option>
-          <option value="import_completed">Import Completed</option>
-          <option value="import_failed">Import Failed</option>
-          <option value="available">Available</option>
-          <option value="stuck">Stuck</option>
-        </select>
-        <label>
-          <input
-            type="checkbox"
-            checked={filters.stuckOnly}
-            onChange={(e) => setFilters({ ...filters, stuckOnly: e.target.checked })}
-          />
-          Stuck Only
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={filters.failedOnly}
-            onChange={(e) => setFilters({ ...filters, failedOnly: e.target.checked })}
-          />
-          Failed Only
-        </label>
       </div>
-      
-      {loading ? (
-        <div className="loading">Loading...</div>
-      ) : (
-        <div className="activity-list">
-          {events.length === 0 ? (
-            <p>No events found.</p>
+
+      <section className="panel">
+        <div className="panel-body tight">
+          {error ? (
+            <EmptyState title="Cannot load activity" tone="error">
+              {error}
+            </EmptyState>
+          ) : loading ? (
+            <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="skeleton" />
+              <div className="skeleton" />
+              <div className="skeleton" />
+            </div>
+          ) : events.length === 0 ? (
+            <EmptyState title="No activity recorded">
+              No events match this filter. Events appear once services report state through polling
+              or webhooks.
+            </EmptyState>
           ) : (
-            events.map((event) => (
-              <div key={event.id} className="activity-event">
-                <span className="activity-time">{formatTime(event.timestamp)}</span>
-                <span
-                  className="activity-icon"
-                  style={{ background: getEventColor(event.event_type) }}
-                >
-                  {event.event_type[0].toUpperCase()}
-                </span>
-                <div className="activity-content">
-                  <div className="activity-title">{event.title}</div>
-                  <div className="activity-meta">
-                    <span className="activity-source">{event.source_service}</span>
-                    <span className="activity-type">{event.event_type.replace(/_/g, ' ')}</span>
-                    {event.season && event.episode && (
-                      <span>S{event.season.toString().padStart(2, '0')}E{event.episode.toString().padStart(2, '0')}</span>
-                    )}
-                    {event.error_message && (
-                      <span className="activity-error">{event.error_message}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Service</th>
+                    <th>Title</th>
+                    <th>Event</th>
+                    <th>State</th>
+                    <th>Evidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((e) => (
+                    <tr key={e.id}>
+                      <td className="tiny mono faint" style={{ whiteSpace: 'nowrap' }}>
+                        {when(e.timestamp)}
+                      </td>
+                      <td className="tiny mono">{e.source_service}</td>
+                      <td>{e.title || <span className="faint">—</span>}</td>
+                      <td className="tiny mono">{e.event_type.replace(/_/g, ' ')}</td>
+                      <td>
+                        <StateBadge state={e.status} label={e.status} />
+                      </td>
+                      <td>
+                        <EvidenceBadge boundary={e.evidence_boundary} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      )}
-      
-      {events.length > 0 && (
-        <div className="activity-pagination">
-          <button
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous
-          </button>
-          <span>Page {page + 1}</span>
-          <button onClick={() => setPage(page + 1)}>Next</button>
-        </div>
-      )}
+      </section>
+
+      <div className="row">
+        <button className="btn" disabled={page === 0 || loading} onClick={() => setPage((p) => p - 1)}>
+          Previous
+        </button>
+        <span className="tiny faint mono">page {page + 1}</span>
+        <button
+          className="btn"
+          disabled={loading || events.length < 100}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
-}
+};
 
-export default ActivityPage;
+export default Activity;

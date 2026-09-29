@@ -38,6 +38,31 @@ class EventType(str, enum.Enum):
     STUCK = "stuck"
     UNKNOWN = "unknown"
 
+    # Webhook-specific events
+    WEBHOOK_TEST = "webhook_test"
+    APPLICATION_UPDATE = "application_update"
+    HEALTH_ISSUE = "health_issue"
+    HEALTH_RESTORED = "health_restored"
+
+    # Prowlarr-specific events
+    INDEXER_SEARCH = "indexer_search"
+    INDEXER_SEARCH_COMPLETED = "indexer_search_completed"
+    INDEXER_SEARCH_FAILED = "indexer_search_failed"
+    RELEASE_REJECTED = "release_rejected"
+
+    # Guardarr-specific events
+    STORAGE_ESTIMATE = "storage_estimate"
+    STORAGE_ADMIT = "storage_admit"
+    STORAGE_RELEASE = "storage_release"
+    STORAGE_RECONCILE = "storage_reconcile"
+    SECURITY_SCAN = "security_scan"
+    SECURITY_ALLOWED = "security_allowed"
+    SECURITY_BLOCKED = "security_blocked"
+    SECURITY_QUARANTINED = "security_quarantined"
+    SECURITY_ALERT = "security_alert"
+    TORRENT_ASSOCIATED = "torrent_associated"
+    TORRENT_UNRESERVED = "torrent_unreserved"
+
 
 class EventStatus(str, enum.Enum):
     PENDING = "pending"
@@ -50,6 +75,8 @@ class SourceService(str, enum.Enum):
     SONARR = "sonarr"
     RADARR = "radarr"
     QBITTORRENT = "qbittorrent"
+    PROWLARR = "prowlarr"
+    GUARDARR = "guardarr"
 
 
 class RawEventModel(Base):

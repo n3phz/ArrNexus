@@ -1,149 +1,106 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { api } from './services/api';
-import { MediaItem, ServiceStatus } from './types';
-import SummaryCards from './components/SummaryCards';
-import PipelineList from './components/PipelineList';
-import ServiceStatusBadge from './components/ServiceStatus';
+import { AttentionItem } from './types';
+import AppShell from './components/AppShell';
+import Overview from './pages/Overview';
+import Attention from './pages/Attention';
+import Media from './pages/Media';
+import Activity from './pages/Activity';
+import ItemDetailPage from './pages/ItemDetail';
 
+/**
+ * Root composition: shared attention state, live-update plumbing, routing.
+ *
+ * SSE is a delivery mechanism only — external services are still observed by
+ * the polling service, and REST remains the source of truth for rendering.
+ */
 function App() {
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [services, setServices] = useState<ServiceStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const sseEventSourceRef = useRef<EventSource | null>(null);
+  const [attention, setAttention] = useState<AttentionItem[]>([]);
+  const [live, setLive] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 30000);
-    return () => {
-      clearInterval(interval);
-      sseEventSourceRef.current?.close();
-    };
-  }, []);
-
-  // Setup SSE connection
-  useEffect(() => {
-    const connectSSE = () => {
-      const eventSource = new EventSource('/api/events/stream');
-      sseEventSourceRef.current = eventSource;
-
-      eventSource.addEventListener('connected', () => {
-        // Connection established; nothing extra is required.
-      });
-
-      eventSource.addEventListener('media_event', (_event: MessageEvent) => {
-        // A newly observed/normalized event arrived. Refresh from the REST source
-        // of truth (the store) rather than fabricating a MediaItem from the SSE
-        // payload, which lacks required fields and could create duplicate rows.
-        loadData();
-      });
-
-      eventSource.addEventListener('error', () => {
-        // On error the EventSource is already closed; schedule a reconnect.
-        setTimeout(connectSSE, 5000);
-      });
-    };
-
-    connectSSE();
-
-    return () => {
-      sseEventSourceRef.current?.close();
-    };
-  }, []);
-
-  const loadData = async () => {
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      setLoading(true);
-      const [itemsData, servicesData] = await Promise.all([
-        api.getItems({ limit: 100 }),
-        api.getServices()
-      ]);
-      setItems(itemsData);
-      setServices(servicesData);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setRefreshKey((k) => k + 1);
     } finally {
-      setLoading(false);
+      setTimeout(() => setRefreshing(false), 400);
     }
-  };
+  }, []);
 
-  const handleItemSelect = (id: string) => {
-    window.location.href = `/item/${id}`;
-  };
+  // Establish the event stream. On any inbound event we invalidate the REST
+  // queries rather than splicing data into local state, so the UI can never
+  // drift from the backend's view of the world.
+  useEffect(() => {
+    let closed = false;
+    let source: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
 
-  const summary = {
-    active: items.filter(i => !['available', 'download_completed', 'import_completed'].includes(i.current_state)).length,
-    attention: items.filter(i => ['download_failed', 'import_failed', 'stuck'].includes(i.current_state)).length,
-    completedToday: items.filter(i => i.current_state === 'available').length,
-    failed: items.filter(i => ['download_failed', 'import_failed'].includes(i.current_state)).length,
-  };
+    const connect = () => {
+      if (closed) return;
+      source = new EventSource('/api/events/stream');
 
-  if (error) {
-    return (
-      <div className="error">
-        <h2>Error</h2>
-        <p>{error}</p>
-        <button onClick={loadData} style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#00d4ff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-          Retry
-        </button>
-      </div>
-    );
-  }
+      source.addEventListener('connected', () => {
+        if (!closed) setLive(true);
+      });
+
+      source.addEventListener('media_event', () => {
+        if (!closed) setRefreshKey((k) => k + 1);
+      });
+
+      source.addEventListener('error', () => {
+        if (closed) return;
+        setLive(false);
+        source?.close();
+        // EventSource retries on its own, but it stops after the connection
+        // is closed by the server; schedule an explicit reconnect.
+        retry = setTimeout(connect, 5000);
+      });
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      source?.close();
+    };
+  }, []);
+
+  // Keep the nav attention counter current even when not on the attention page.
+  useEffect(() => {
+    if (refreshKey === 0) return;
+    let cancelled = false;
+    api
+      .getAttention({ limit: 200 })
+      .then((data) => {
+        if (!cancelled) setAttention(data);
+      })
+      .catch(() => {
+        /* counter is best-effort; the attention view surfaces failures */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  const attentionCount = attention.filter(
+    (a) => a.attention_level === 'required' || a.attention_level === 'blocked',
+  ).length;
 
   return (
-    <div className="app">
-      <header className="header">
-        <h1>ARR CONTROL</h1>
-        <button onClick={loadData} style={{ padding: '0.5rem 1rem', background: '#00d4ff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}>
-          Refresh
-        </button>
-      </header>
-
-      {loading ? (
-        <div className="loading">Loading...</div>
-      ) : (
-        <>
-          <SummaryCards {...summary} />
-
-          <section className="pipeline-section">
-            <h2 className="section-title">Active Pipeline</h2>
-            <PipelineList items={items.map(i => ({...i, state: i.current_state}))} onItemSelect={handleItemSelect} />
-          </section>
-
-          {summary.attention > 0 && (
-            <section className="attention-section">
-              <h2 className="section-title">Attention Required</h2>
-              {items
-                .filter(i => ['download_failed', 'import_failed', 'stuck'].includes(i.current_state))
-                .map(item => (
-                  <div key={item.id} className="attention-item">
-                    <div>
-                      <span className="title">{item.title}</span>
-                      {item.season && item.episode && (
-                        <span style={{ color: '#888', marginLeft: '0.5rem', fontSize: '0.875rem' }}>
-                          S{item.season.toString().padStart(2, '0')}E{item.episode.toString().padStart(2, '0')}
-                        </span>
-                      )}
-                    </div>
-                    <span className="type">{item.current_state.replace(/_/g, ' ')}</span>
-                  </div>
-                ))
-              }
-            </section>
-          )}
-
-          <section className="services-section">
-            <h2 className="section-title">Services</h2>
-            <div className="services-list">
-              {services.map(service => (
-                <ServiceStatusBadge key={service.service} status={service.status} serviceName={service.service} />
-              ))}
-            </div>
-          </section>
-        </>
-      )}
-    </div>
+    <AppShell attentionCount={attentionCount} live={live} onRefresh={refresh} refreshing={refreshing}>
+      <Routes>
+        <Route path="/" element={<Overview onData={setAttention} />} />
+        <Route path="/attention" element={<Attention onData={setAttention} refreshKey={refreshKey} />} />
+        <Route path="/media" element={<Media refreshKey={refreshKey} />} />
+        <Route path="/activity" element={<Activity refreshKey={refreshKey} />} />
+        <Route path="/item/:id" element={<ItemDetailPage />} />
+        <Route path="*" element={<Overview onData={setAttention} />} />
+      </Routes>
+    </AppShell>
   );
 }
 
