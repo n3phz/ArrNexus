@@ -15,6 +15,7 @@ from backend.api.services import router as services_router
 from backend.api.webhooks import router as webhooks_router
 from backend.api.backfill import router as backfill_router
 from backend.api.activity import router as activity_router
+from backend.api.attention import router as attention_router
 from backend.database.base import Base, engine, init_db
 from backend.core.config import get_settings
 from backend.services.polling import PollingService
@@ -78,6 +79,7 @@ def create_application() -> FastAPI:
     app.include_router(webhooks_router)
     app.include_router(backfill_router)
     app.include_router(activity_router)
+    app.include_router(attention_router)
     
     return app
 
