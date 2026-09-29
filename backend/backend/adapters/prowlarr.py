@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 
 from backend.adapters.base import (
     ServiceAdapter, SourceService, MediaType, EventType, EventStatus,
-    RawEvent, ActiveItem, ServiceHealth
+    RawEvent, ActiveItem, ServiceHealth, EvidenceBoundary
 )
 from backend.core.config import get_settings
 
@@ -213,8 +213,10 @@ class ProwlarrAdapter(ServiceAdapter):
                 "indexer": record.get("indexer"),
                 "indexer_flags": record.get("indexerFlags"),
                 "download_client": record.get("downloadClient"),
+                "causal_boundary": "no_causal_link_implied",
             },
-            status=EventStatus.COMPLETED
+            status=EventStatus.COMPLETED,
+            evidence_boundary=EvidenceBoundary.OBSERVED,
         )
 
 

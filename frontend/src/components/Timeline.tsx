@@ -1,3 +1,5 @@
+type EvidenceBoundaryValue = 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+
 interface TimelineProps {
   events: Array<{
     timestamp: string;
@@ -6,8 +8,27 @@ interface TimelineProps {
     error_message?: string;
     normalized_metadata?: Record<string, any>;
     ingestion?: 'webhook' | 'polling';
+    evidence_boundary?: EvidenceBoundaryValue;
   }>;
 }
+
+const EVIDENCE_TOOLTIPS: Record<EvidenceBoundaryValue, string> = {
+  OBSERVED: 'Directly observed from an external service',
+  CORRELATED: 'Relationship established from observed evidence',
+  INFERRED: 'Derived conclusion based on available evidence',
+  UNKNOWN: 'Insufficient evidence to establish a conclusion',
+  BLOCKED: 'Required evidence could not be obtained (external dependency unavailable)',
+  SYNTHETIC: 'Test/synthetic data, not from live environment',
+};
+
+const EVIDENCE_COLORS: Record<EvidenceBoundaryValue, string> = {
+  OBSERVED: '#00b894',
+  CORRELATED: '#fdcb6e',
+  INFERRED: '#74b9ff',
+  UNKNOWN: '#d63031',
+  BLOCKED: '#636e72',
+  SYNTHETIC: '#8e44ad',
+};
 
 export const Timeline: React.FC<TimelineProps> = ({ events }) => {
   const formatTime = (timestamp: string) => {
@@ -17,6 +38,29 @@ export const Timeline: React.FC<TimelineProps> = ({ events }) => {
     } catch {
       return timestamp;
     }
+  };
+
+  const getEvidenceBadge = (boundary?: EvidenceBoundaryValue) => {
+    if (!boundary) return null;
+    return (
+      <span
+        style={{
+          marginLeft: '0.5rem',
+          padding: '0.125rem 0.375rem',
+          borderRadius: '0.25rem',
+          fontSize: '0.65rem',
+          fontWeight: 'bold',
+          background: EVIDENCE_COLORS[boundary],
+          color: '#fff',
+          textTransform: 'uppercase',
+          cursor: 'help',
+          border: 'none',
+        }}
+        title={EVIDENCE_TOOLTIPS[boundary] || boundary}
+      >
+        {boundary.charAt(0)}
+      </span>
+    );
   };
 
   const getEventIcon = (eventType: string) => {
@@ -131,6 +175,7 @@ export const Timeline: React.FC<TimelineProps> = ({ events }) => {
             <div className="timeline-content">
               <div className="event-type">
                 {event.event_type.replace(/_/g, ' ')}
+                {getEvidenceBadge(event.evidence_boundary)}
                 {getIngestionBadge(event.ingestion)}
               </div>
               <div className="event-source">{event.source}</div>

@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 
 from backend.adapters.base import (
     ServiceAdapter, SourceService, MediaType, EventType, EventStatus,
-    RawEvent, ActiveItem, ServiceHealth
+    RawEvent, ActiveItem, ServiceHealth, EvidenceBoundary
 )
 from backend.core.config import get_settings
 
@@ -170,6 +170,25 @@ class GuardarrAdapter(ServiceAdapter):
 
             event_type = event_type_map.get(state, EventType.UNKNOWN)
 
+            # Determine evidence boundary for this reservation.
+            # A reservation is classified SYNTHETIC when it is clearly test/synthetic
+            # data (e.g. content_id / idempotency_key contains a test marker) or when
+            # the reservation id corresponds to a known test reservation. We do NOT
+            # hard-code a blanket "Guardarr = synthetic"; we rely on the reservation's
+            # own metadata. If no reliable synthetic marker is present, the event is
+            # left as OBSERVED (a directly-observed external event).
+            content_id = reservation.get("content_id", "")
+            idempotency_key = reservation.get("idempotency_key", "")
+            reserved_id = reservation.get("reservation_id", "")
+            test_markers = ["test", "synthetic", "fixture", "demo"]
+            is_synthetic = any(
+                marker in content_id.lower()
+                or marker in idempotency_key.lower()
+                or marker in reserved_id.lower()
+                for marker in test_markers
+            )
+            evidence = EvidenceBoundary.SYNTHETIC if is_synthetic else EvidenceBoundary.OBSERVED
+
             # Parse timestamp
             timestamp_str = reservation.get("updated_at") or reservation.get("created_at", "")
             try:
@@ -178,7 +197,6 @@ class GuardarrAdapter(ServiceAdapter):
                 timestamp = datetime.utcnow()
 
             # Determine correlation key
-            content_id = reservation.get("content_id", "")
             torrent_hash = reservation.get("torrent_metadata_hash", "")
             arr_item_id = reservation.get("arr_item_id", "")
 
@@ -221,9 +239,11 @@ class GuardarrAdapter(ServiceAdapter):
                     "priority": reservation.get("priority"),
                     "owner": reservation.get("owner"),
                     "torrent_tag": reservation.get("torrent_tag"),
-                    "idempotency_key": reservation.get("idempotency_key"),
+                    "idempotency_key": idempotency_key,
+                    "synthetic": is_synthetic,
                 },
-                status=EventStatus.COMPLETED
+                status=EventStatus.COMPLETED,
+                evidence_boundary=evidence,
             )
         except Exception as e:
             logger.error(f"Failed to convert reservation to event: {e}")

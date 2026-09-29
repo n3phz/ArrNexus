@@ -1,7 +1,7 @@
 """Base adapter interface for all service integrations."""
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
@@ -69,6 +69,16 @@ class EventStatus(str, Enum):
     FAILED = "failed"
 
 
+class EvidenceBoundary(str, Enum):
+    """Classification of how an event or relationship was established."""
+    OBSERVED = "observed"          # Directly observed from an external service
+    CORRELATED = "correlated"      # Relationship established from observed evidence
+    INFERRED = "inferred"          # Derived conclusion based on available evidence
+    UNKNOWN = "unknown"            # Insufficient evidence to establish a conclusion
+    BLOCKED = "blocked"            # Required evidence could not be obtained (external dependency unavailable)
+    SYNTHETIC = "synthetic"        # Test/synthetic data, not from live environment
+
+
 @dataclass
 class RawEvent:
     """Normalized event from a service adapter."""
@@ -92,7 +102,9 @@ class RawEvent:
     status: EventStatus = EventStatus.COMPLETED
     error_message: Optional[str] = None
     error_details: Optional[str] = None
-    
+    evidence_boundary: EvidenceBoundary = EvidenceBoundary.OBSERVED
+    confidence_basis: Optional[str] = None
+
     def to_sse_data(self) -> Dict[str, Any]:
         """Serialize event to SSE-compatible format."""
         return {
@@ -104,7 +116,9 @@ class RawEvent:
             "title": self.title,
             "media_type": self.media_type.value,
             "provenance": "polling",
-            "metadata": self.normalized_metadata or {}
+            "metadata": self.normalized_metadata or {},
+            "evidence_boundary": self.evidence_boundary.value,
+            "confidence_basis": self.confidence_basis,
         }
 
 
@@ -125,6 +139,7 @@ class ActiveItem:
     current_state: EventType = EventType.UNKNOWN
     progress: Optional[int] = None
     current_service: Optional[SourceService] = None
+    evidence_boundary: EvidenceBoundary = EvidenceBoundary.OBSERVED
 
 
 @dataclass
@@ -135,6 +150,7 @@ class ServiceHealth:
     version: Optional[str] = None
     error_message: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
+    evidence_boundary: EvidenceBoundary = EvidenceBoundary.OBSERVED
 
 
 class ServiceAdapter(ABC):

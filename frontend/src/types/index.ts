@@ -15,6 +15,7 @@ export interface MediaItem {
   event_count: number;
   first_seen_at?: string;
   confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
   download_attempts?: DownloadAttempt[];
   ingestion_sources?: ('webhook' | 'polling')[];
   state?: string; // For PipelineRow compatibility
@@ -36,6 +37,7 @@ export interface PipelineRow {
   imdb_id?: string;
   current_state: string;
   confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
   download_attempts?: DownloadAttempt[];
   ingestion_sources?: ('webhook' | 'polling')[];
   first_seen_at?: string;
@@ -102,6 +104,7 @@ export interface GuardarrEvent {
   owner?: string;
   torrent_tag?: string;
   idempotency_key?: string;
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
 }
 
 export interface Event {
@@ -117,6 +120,8 @@ export interface Event {
   status: string;
   error_message?: string;
   ingestion?: 'webhook' | 'polling';
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  confidence_basis?: string;
 }
 
 export interface ServiceStatus {
@@ -124,6 +129,7 @@ export interface ServiceStatus {
   status: string;
   version?: string;
   error?: string;
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
 }
 
 export interface TimelineEvent {
@@ -134,6 +140,8 @@ export interface TimelineEvent {
   error_message?: string;
   normalized_metadata?: Record<string, any>;
   ingestion?: 'webhook' | 'polling';
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  confidence_basis?: string;
 }
 
 export interface ItemDetail extends MediaItem {
@@ -147,6 +155,8 @@ export interface Explanation {
   reason: string;
   evidence: string[];
   timeline_summary: string;
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  confidence_basis?: string;
 }
 
 export interface SummaryCounts {
@@ -165,5 +175,7 @@ export interface SseEvent {
   title: string;
   media_type: string;
   provenance: string;
+  evidence_boundary?: 'OBSERVED' | 'CORRELATED' | 'INFERRED' | 'UNKNOWN' | 'BLOCKED' | 'SYNTHETIC';
+  confidence_basis?: string;
   metadata?: Record<string, any>;
 }
