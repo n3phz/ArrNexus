@@ -91,10 +91,6 @@ async def stream_events(
             
             # Poll for events
             while True:
-                # Check if client disconnected
-                if request.client and request.client.disconnected:
-                    break
-                
                 # Wait for event or heartbeat
                 try:
                     data = await asyncio.wait_for(queue.get(), timeout=30.0)
