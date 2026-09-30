@@ -8,7 +8,7 @@ from backend.database.base import get_db
 from backend.services.events import EventService
 from backend.adapters.base import SourceService, EventType
 
-logger = logging.getLogger("arr-control.api.events")
+logger = logging.getLogger("arrnexus.api.events")
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 

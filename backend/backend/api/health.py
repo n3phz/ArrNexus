@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 from backend.core.config import get_settings
 from backend.adapters import get_all_adapters
 
-logger = logging.getLogger("arr-control.api.health")
+logger = logging.getLogger("arrnexus.api.health")
 
 router = APIRouter(prefix="/api", tags=["health"])
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["health"])
 @router.get("/health", summary="Health check")
 def health_check():
     """Simple health check endpoint."""
-    return JSONResponse(content={"status": "ok", "service": "arr-control"})
+    return JSONResponse(content={"status": "ok", "service": "arrnexus"})
 
 
 @router.get("/ready", summary="Readiness check")
@@ -36,6 +36,6 @@ def health_check_v2():
     settings = get_settings()
     return JSONResponse(content={
         "status": "ok",
-        "service": "arr-control",
+        "service": "arrnexus",
         "version": settings.app_version
     })

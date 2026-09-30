@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from backend.database.base import get_db
 from backend.services.backfill import get_backfill_service, BackfillProgress, BackfillStatus
 
-logger = logging.getLogger("arr-control.api.backfill")
+logger = logging.getLogger("arrnexus.api.backfill")
 
 router = APIRouter(prefix="/api/backfill", tags=["backfill"])
 

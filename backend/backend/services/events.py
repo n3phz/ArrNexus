@@ -9,7 +9,7 @@ from backend.adapters.base import RawEvent, SourceService
 from backend.models import RawEventModel, MediaItemModel, EventType as DBEventType, EventStatus as DBEventStatus, MediaType as DBMediaType, SourceService as DBSourceService
 from backend.correlation.engine import get_correlation_engine, CorrelationResult
 
-logger = logging.getLogger("arr-control.services.events")
+logger = logging.getLogger("arrnexus.services.events")
 
 
 def _naive_utc(ts: datetime) -> datetime:

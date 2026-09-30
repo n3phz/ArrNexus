@@ -1,16 +1,18 @@
 services:
-  arr-control:
+  arrnexus:
     build: .
-    image: arr-control:latest
-    container_name: arr-control
+    image: arrnexus:latest
+    container_name: arrnexus
     restart: unless-stopped
     ports:
       - "8000:8000"
       - "5173:5173"
     environment:
       - GUARDARR_DATA_DIR=/config
-      - DATABASE_URL=sqlite:////config/arr-control.db
+      - DATABASE_URL=sqlite:////config/arrnexus.db
       - TZ=UTC
+      # Public URL
+      - PUBLIC_URL=https://arrnexus.neph.ovh
       # Sonarr
       - SONARR_URL=http://sonarr:8989
       - SONARR_API_KEY=${SONARR_API_KEY}
@@ -31,7 +33,7 @@ services:
       - POLL_INTERVAL_SECONDS=30
       - POLL_TIMEOUT_SECONDS=10
     volumes:
-      - arr-control-config:/config
+      - arrnexus-config:/config
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
@@ -40,4 +42,4 @@ services:
       start_period: 10s
 
 volumes:
-  arr-control-config:
+  arrnexus-config:

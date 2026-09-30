@@ -9,7 +9,7 @@ from backend.services.events import EventService
 from backend.adapters import get_all_adapters
 from backend.adapters.base import ServiceAdapter
 
-logger = logging.getLogger("arr-control.api.services")
+logger = logging.getLogger("arrnexus.api.services")
 
 router = APIRouter(prefix="/api/services", tags=["services"])
 

@@ -1,54 +1,54 @@
-"""Production deployment configuration for arr-control."""
+"""Production deployment configuration for arrnexus."""
 from pydantic import BaseModel
 from typing import List, Optional
 
 
 class DockerConfig(BaseModel):
-    """Deployment configuration for arr-control."""
-    
+    """Deployment configuration for arrnexus."""
+
     # Application
-    name: str = "arr-control"
+    name: str = "arrnexus"
     version: str = "0.1.0"
     description: str = "Media Automation Control Plane"
-    
+
     # Backend
     backend_image: str = "node:20-alpine"
     backend_workdir: str = "/app"
     backend_port: int = 8000
     backend_command: str = "uvicorn backend.main:application --host 0.0.0.0 --port 8000"
-    
+
     # Frontend
     frontend_image: str = "node:20-alpine"
     frontend_workdir: str = "/app"
     frontend_port: int = 3000
     frontend_command: str = "npx serve -s dist -l 3000"
-    
+
     # PostgreSQL (optional, SQLite is default)
     postgres_enabled: bool = False
     postgres_image: str = "postgres:16-alpine"
     postgres_port: int = 5432
-    postgres_database: str = "arr_control"
-    postgres_user: str = "arr_control"
+    postgres_database: str = "arrnexus"
+    postgres_user: str = "arrnexus"
     postgres_password: str = "changeme"
-    
+
     # Storage
     volumes: List[dict] = [
         {
             "type": "volume",
-            "source": "arr-control-data",
+            "source": "arrnexus-data",
             "target": "/data",
             "readonly": False
         }
     ]
-    
+
     # Environment variables
     env: List[str] = [
-        "DATABASE_URL=sqlite:////data/arr-control.db",
-        "APP_NAME=arr-control",
+        "DATABASE_URL=sqlite:////data/arrnexus.db",
+        "APP_NAME=arrnexus",
         "ENVIRONMENT=production",
         "DEBUG=false"
     ]
-    
+
     # Restart policy
     restart_policy: str = "unless-stopped"
     healthcheck: dict = {
@@ -58,9 +58,9 @@ class DockerConfig(BaseModel):
         "retries": 3,
         "start_period": "10s"
     }
-    
+
     # Networks
-    networks: List[str] = ["arr-control-network"]
+    networks: List[str] = ["arrnexus-network"]
 
 
 def generate_docker_compose(config: DockerConfig) -> str:
@@ -77,7 +77,7 @@ services:
     ports:
       - "{config.backend_port}:{config.backend_port}"
     volumes:
-      - arr-control-data:/data
+      - arrnexus-data:/data
     environment:
       {"\\n      ".join(config.env)}
     restart: {config.restart_policy}
@@ -105,7 +105,7 @@ services:
       - {config.networks[0]}
 
 volumes:
-  arr-control-data:
+  arrnexus-data:
     driver: local
 
 networks:

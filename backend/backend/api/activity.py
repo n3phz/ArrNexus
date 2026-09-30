@@ -10,7 +10,7 @@ from backend.database.base import get_db
 from backend.models import RawEventModel, EventType as DBEventType, SourceService as DBSourceService, MediaType as DBMediaType
 from backend.adapters.base import SourceService, EventType
 
-logger = logging.getLogger("arr-control.api.activity")
+logger = logging.getLogger("arrnexus.api.activity")
 
 router = APIRouter(prefix="/api/activity", tags=["activity"])
 

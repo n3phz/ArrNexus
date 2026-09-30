@@ -10,7 +10,7 @@ from backend.services.events import EventService
 from backend.database.base import get_db
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger("arr-control.backfill")
+logger = logging.getLogger("arrnexus.backfill")
 
 
 class BackfillStatus(str, Enum):

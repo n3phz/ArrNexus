@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from backend.adapters.base import SourceService, EventType, EvidenceBoundary
 from backend.correlation.engine import CorrelationResult
 
-logger = logging.getLogger("arr-control.services.orchestrator")
+logger = logging.getLogger("arrnexus.services.orchestrator")
 
 
 def _norm_ts(ts: Optional[datetime]) -> datetime:

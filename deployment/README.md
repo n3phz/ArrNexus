@@ -1,8 +1,8 @@
-# Deployment documentation for arr-control
+# ArrNexus
 
 ## Overview
 
-arr-control is a media automation control plane that observes, correlates, and explains events across your ARR stack.
+ArrNexus is a media automation control plane that observes, correlates, and explains events across your ARR stack.
 
 ## Components
 
@@ -15,6 +15,10 @@ arr-control is a media automation control plane that observes, correlates, and e
 - React application running on port 3000
 - Serves static files via `serve`
 - Communicates with backend via REST API
+
+## Public URL
+
+**[https://arrnexus.neph.ovh](https://arrnexus.neph.ovh)**
 
 ## Deployment Options
 
@@ -52,7 +56,7 @@ See `deployment/kubernetes/` for Kubernetes manifests (when implemented).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `sqlite:////tmp/arr-control.db` | Database connection string |
+| `DATABASE_URL` | `sqlite:////tmp/arrnexus.db` | Database connection string |
 | `SONARR_URL` | `http://localhost:8989` | Sonarr API URL |
 | `SONARR_API_KEY` | | Sonarr API key |
 | `RADARR_URL` | `http://localhost:7878` | Radarr API URL |
@@ -72,15 +76,15 @@ To enable real-time event ingestion, configure webhooks in Sonarr/Radarr:
 **Sonarr:**
 - Settings → Connect → Add Connection
 - Select Webhook
-- Name: arr-control
-- URL: `http://arr-control-backend:8000/api/webhook/sonarr`
+- Name: arrnexus
+- URL: `http://arrnexus-backend:8000/api/webhook/sonarr`
 - Events: Grab, Download, Import, Rename
 
 **Radarr:**
 - Settings → Connect → Add Connection
 - Select Webhook
-- Name: arr-control
-- URL: `http://arr-control-backend:8000/api/webhook/radarr`
+- Name: arrnexus
+- URL: `http://arrnexus-backend:8000/api/webhook/radarr`
 - Events: Grab, Download, Import, Rename
 
 ## API Endpoints
@@ -136,12 +140,12 @@ Metrics are not yet exposed. Plan to add Prometheus metrics endpoint in future p
 
 ### Backend Logs
 ```bash
-docker logs arr-control-backend
+docker logs arrnexus-backend
 ```
 
 ### Frontend Logs
 ```bash
-docker logs arr-control-frontend
+docker logs arrnexus-frontend
 ```
 
 ## Troubleshooting

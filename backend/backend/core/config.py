@@ -6,16 +6,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Application
-    app_name: str = Field(default="arr-control")
+    app_name: str = Field(default="arrnexus")
     app_version: str = Field(default="0.1.0")
     environment: str = Field(default="development")
     debug: bool = Field(default=True)
 
     # Data directory
-    data_dir: Path = Field(default=Path("/tmp/arr-control"))
+    data_dir: Path = Field(default=Path("/tmp/arrnexus"))
     
     # Database
-    database_url: str = Field(default="sqlite:////tmp/arr-control/arr-control.db")
+    database_url: str = Field(default="sqlite:////tmp/arrnexus/arrnexus.db")
 
     # Polling
     poll_interval_seconds: int = Field(default=30)

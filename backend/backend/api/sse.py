@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
-logger = logging.getLogger("arr-control.api.sse")
+logger = logging.getLogger("arrnexus.api.sse")
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 

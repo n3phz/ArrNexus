@@ -8,7 +8,7 @@ from backend.database.base import get_db
 from backend.services.events import EventService
 from backend.correlation.engine import CorrelationResult
 
-logger = logging.getLogger("arr-control.api.items")
+logger = logging.getLogger("arrnexus.api.items")
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 

@@ -14,7 +14,7 @@ from backend.services.events import EventService
 from backend.database.base import SessionLocal
 from backend.api.sse import sse_tracker
 
-logger = logging.getLogger("arr-control.services.polling")
+logger = logging.getLogger("arrnexus.services.polling")
 
 
 class PollingService:

@@ -11,7 +11,7 @@ from backend.adapters.base import (
 )
 from backend.core.config import get_settings
 
-logger = logging.getLogger("arr-control.adapters.guardarr")
+logger = logging.getLogger("arrnexus.adapters.guardarr")
 
 
 class GuardarrAdapter(ServiceAdapter):

@@ -1,8 +1,8 @@
-# Media Control Plane
+# ArrNexus
 
-**Evidence-based control and observability for automated media pipelines.**
+**The operational control plane for the Arr stack.**
 
-Media Control Plane (MCP) is a specialized control plane for media automation stacks built around **Sonarr**, **Radarr**, **qBittorrent**, **Prowlarr**, and **Guardarr**.
+ArrNexus is a specialized control plane for media automation stacks built around **Sonarr**, **Radarr**, **qBittorrent**, **Prowlarr**, and **Guardarr**.
 
 It is **not**:
 - A replacement for Sonarr/Radarr
@@ -10,6 +10,8 @@ It is **not**:
 - A media player or streaming server
 
 Instead, it is the **evidence-first control layer** that observes, correlates, and explains events across these systems.
+
+**Public URL:** [https://arrnexus.neph.ovh](https://arrnexus.neph.ovh)
 
 ## Core Concept
 
@@ -99,7 +101,7 @@ Environment variables are configured via `.env` with placeholders. Replace with 
 
 ## Evidence Boundaries
 
-Media Control Plane adheres to a strict, explicit evidence model. Every event and
+ArrNexus adheres to a strict, explicit evidence model. Every event and
 correlation is classified by an `evidence_boundary` so the system never presents
 missing evidence as a confident causal explanation.
 
@@ -118,6 +120,8 @@ missing evidence as a confident causal explanation.
 
 Confidence reflects how strongly events are correlated, and each level carries an
 explicit basis exposed by the API (`confidence_basis`):
+
+**Public URL:** [https://arrnexus.neph.ovh](https://arrnexus.neph.ovh)
 
 - **HIGH** — exact hash match between *Arr `source_download_id` and qBittorrent `hash`.
 - **MEDIUM** — category/tag correlation **and** at least one *Arr event (no hash match).
@@ -141,6 +145,8 @@ Explanations are grounded in evidence rather than asserting causality. For examp
 - *"Download is stalled according to qBittorrent state."* (observed)
 - *"Required evidence could not be obtained because an external service was unavailable."* (blocked)
 - *"The available evidence is insufficient to establish a conclusion."* (unknown)
+
+**Public URL:** [https://arrnexus.neph.ovh](https://arrnexus.neph.ovh)
 
 ### Guardarr Synthetic Data
 

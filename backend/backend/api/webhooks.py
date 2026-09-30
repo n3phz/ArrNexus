@@ -12,7 +12,7 @@ from backend.services.events import EventService
 from backend.database.base import get_db
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger("arr-control.api.webhooks")
+logger = logging.getLogger("arrnexus.api.webhooks")
 
 router = APIRouter(prefix="/api/webhook", tags=["webhooks"])
 

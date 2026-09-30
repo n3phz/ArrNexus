@@ -8,7 +8,7 @@ from backend.database.base import get_db
 from backend.services.events import EventService
 from backend.services.orchestrator import get_orchestrator, AttentionLevel
 
-logger = logging.getLogger("arr-control.api.attention")
+logger = logging.getLogger("arrnexus.api.attention")
 
 router = APIRouter(prefix="/api/attention", tags=["attention"])
 

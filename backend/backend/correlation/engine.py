@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from backend.adapters.base import RawEvent, SourceService, MediaType, EventType, EvidenceBoundary
 from backend.correlation.matching import _titles_overlap
 
-logger = logging.getLogger("arr-control.correlation")
+logger = logging.getLogger("arrnexus.correlation")
 
 
 def _norm_ts(ts: Optional[datetime]) -> Optional[datetime]:

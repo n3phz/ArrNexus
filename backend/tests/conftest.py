@@ -130,7 +130,7 @@ def mock_settings():
         settings.database_url = f"sqlite:///{tempfile.mktemp()}.db"
         settings.poll_interval_seconds = 30
         settings.poll_timeout_seconds = 10
-        settings.app_name = "arr-control"
+        settings.app_name = "arrnexus"
         settings.app_version = "0.1.0"
         settings.environment = "test"
         settings.debug = True

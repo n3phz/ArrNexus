@@ -5,15 +5,15 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    image: arr-control-backend:latest
-    container_name: arr-control-backend
+    image: arrnexus-backend:latest
+    container_name: arrnexus-backend
     ports:
       - "8000:8000"
     volumes:
-      - arr-control-data:/data
+      - arrnexus-data:/data
     environment:
-      - DATABASE_URL=sqlite:////data/arr-control.db
-      - APP_NAME=arr-control
+      - DATABASE_URL=sqlite:////data/arrnexus.db
+      - APP_NAME=arrnexus
       - ENVIRONMENT=production
       - DEBUG=false
       - SONARR_URL=http://sonarr:8989
@@ -22,7 +22,7 @@ services:
       - PROWLARR_URL=http://prowlarr:9696
     restart: unless-stopped
     networks:
-      - arr-control-network
+      - arrnexus-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
       interval: 30s
@@ -34,8 +34,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-    image: arr-control-frontend:latest
-    container_name: arr-control-frontend
+    image: arrnexus-frontend:latest
+    container_name: arrnexus-frontend
     ports:
       - "3000:3000"
     depends_on:
@@ -43,12 +43,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - arr-control-network
+      - arrnexus-network
 
 volumes:
-  arr-control-data:
+  arrnexus-data:
     driver: local
 
 networks:
-  arr-control-network:
+  arrnexus-network:
     driver: bridge
