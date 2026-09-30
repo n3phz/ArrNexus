@@ -34,6 +34,11 @@ class EventService:
     
     def ingest_event(self, event: RawEvent) -> RawEventModel:
         """Ingest a single event into the database."""
+        # Normalize timestamp to naive-UTC up front so that downstream code
+        # (duplicate detection, correlation engine, state machine) never has to
+        # mix offset-aware and offset-naive datetimes.
+        event.timestamp = _naive_utc(event.timestamp)
+        
         # Check for duplicate
         existing = self._find_duplicate(event)
         if existing:
@@ -69,7 +74,7 @@ class EventService:
         self.db.commit()
         self.db.refresh(db_event)
         
-        # Update correlation engine
+        # Update correlation engine (event timestamp is now naive-UTC)
         self.correlation_engine.add_events([event])
         
         return db_event

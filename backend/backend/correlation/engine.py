@@ -354,6 +354,12 @@ class CorrelationEngine:
         - Multiple downloads (tracked per item)
         - Cross-service hash correlation (Sonarr/Radarr downloadId <-> qBittorrent hash)
         """
+        # Normalize timestamps on intake so offset-aware service payloads
+        # (e.g. ISO-8601 'Z' suffix from Sonarr/Radarr) never mix with
+        # naive values in internal sorts / comparisons.
+        for ev in events:
+            ev.timestamp = _norm_ts(ev.timestamp)
+        
         updated = []
 
         # Group events by correlation key (using media_identifier as primary)
