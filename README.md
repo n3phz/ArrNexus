@@ -84,8 +84,8 @@ The system has been validated against a live test deployment with 50 core tests 
 
 ```bash
 # Clone the repository
-git clone https://github.com/n3phz/media-control-plane.git
-cd media-control-plane
+git clone https://github.com/n3phz/ArrNexus.git
+cd ArrNexus
 
 # Build and run with Docker Compose
 docker compose up --build
@@ -159,18 +159,18 @@ reservation metadata, not a hard-coded blanket rule.
 ### Prowlarr Causal Boundary
 
 A Prowlarr search/query observation and a later Sonarr/Radarr grab are recorded as
-two independent **OBSERVED** events. Media Control Plane does **not** claim that
+two independent **OBSERVED** events. ArrNexus does **not** claim that
 Prowlarr caused the grab; no causal link is inferred from the available evidence.
 
 ### SSE Delivery vs External Real-Time
 
-SSE provides real-time **delivery** of events discovered by Media Control Plane. It
+SSE provides real-time **delivery** of events discovered by ArrNexus. It
 does **not** make the external integrations themselves real-time:
 
 ```
 Guardarr
   ↓ polling
-Media Control Plane
+ArrNexus
   ↓ SSE
 Browser
 ```
@@ -184,7 +184,7 @@ Browser
                               │ Polling (30s interval)
                     └───────▼─────────┘
                     ┌─────────────────────┐
-                    │ Media Control Plane │
+                    │ ArrNexus │
                     │  Backend (FastAPI)  │
                     │  • Correlation Engine│
                     │  • Polling Service  │
@@ -322,4 +322,4 @@ Saltbox deployment.
 
 ---
 
-*Media Control Plane is currently in active development. Features are progressively rolling out. Contributions welcome.*
+*ArrNexus is currently in active development. Features are progressively rolling out. Contributions welcome.*

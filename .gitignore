@@ -12,8 +12,6 @@ yarn-error.log
 package-lock.json
 
 # Build artifacts
-/dist
-/assets
 *.log
 
 # OS
