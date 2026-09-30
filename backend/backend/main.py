@@ -6,6 +6,8 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
 from backend.api.health import router as health_router
 from backend.api.items import router as items_router
@@ -80,7 +82,12 @@ def create_application() -> FastAPI:
     app.include_router(backfill_router)
     app.include_router(activity_router)
     app.include_router(attention_router)
-    
+
+    # Serve the React SPA from the bundled dist directory
+    frontend_path = "/app/frontend/dist"
+    if os.path.isdir(frontend_path):
+        app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+
     return app
 
 
