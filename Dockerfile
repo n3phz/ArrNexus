@@ -1,4 +1,4 @@
-"""Dockerfile for arr-control."""
+# Dockerfile for ArrNexus.
 FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -10,10 +10,10 @@ WORKDIR /app
 
 # Copy requirements first for better caching
 COPY backend/pyproject.toml ./backend/
-RUN pip install --no-cache-dir .[dev]
+RUN pip install --no-cache-dir ./backend[dev]
 
-# Copy source code
-COPY backend/ ./backend/
+# Copy source code (the actual package is at backend/backend/)
+COPY backend/backend/ ./backend/
 COPY frontend/ ./frontend/
 
 # Create config directory
