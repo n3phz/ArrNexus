@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { AttentionItem } from '../types';
 import EvidenceBadge from './EvidenceBadge';
+import StageBadge, { elapsed } from './StageBadge';
 import StateBadge from './StateBadge';
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -16,6 +17,22 @@ const SEVERITY: Record<string, 'high' | 'medium' | 'low' | 'blocked'> = {
   medium: 'medium',
   low: 'low',
   none: 'low',
+};
+
+/**
+ * Plain-language gloss for the machine-readable attention class.
+ * Kept short so the card stays scannable; the full reasoning is in the detail
+ * view, where the evidence chain is visible.
+ */
+const CLASS_LABEL: Record<string, string> = {
+  GRAB_NO_DOWNLOAD: 'grabbed, no download started',
+  DOWNLOAD_NO_IMPORT: 'downloaded, no import started',
+  UNUSUALLY_LONG_STAGE: 'stage overdue',
+  DOWNLOAD_STALLED: 'download stalled',
+  DOWNLOAD_FAILED: 'download failed',
+  IMPORT_FAILED: 'import failed',
+  STUCK: 'stuck',
+  EVIDENCE_BLOCKED: 'evidence unavailable',
 };
 
 function sinceLabel(ts?: string | null): string {
@@ -61,8 +78,34 @@ export const AttentionCard: React.FC<Props> = ({ attention }) => {
           <EvidenceBadge boundary={attention.evidence_boundary} solid showLabel />
         </header>
 
-        <div className="attn-why-label">{LEVEL_LABEL[attention.attention_level] ?? attention.attention_level}</div>
+        <div className="attn-why-label">
+          {LEVEL_LABEL[attention.attention_level] ?? attention.attention_level}
+        </div>
         <p className="attn-reason">{attention.reason}</p>
+
+        <div className="attn-tags">
+          {attention.attention_class && (
+            <span className="tag" title={`Diagnosis class: ${attention.attention_class}`}>
+              {CLASS_LABEL[attention.attention_class] ?? attention.attention_class
+                .replace(/_/g, ' ')
+                .toLowerCase()}
+            </span>
+          )}
+          {typeof attention.stage_duration_seconds === 'number' && (
+            <span
+              className="tag"
+              title="Time spent in the current pipeline stage"
+            >
+              in stage {elapsed(attention.stage_duration_seconds)}
+            </span>
+          )}
+          {typeof attention.evidence_age_seconds === 'number' && (
+            <span className="tag" title="Time since this item was last observed">
+              last seen {elapsed(attention.evidence_age_seconds)} ago
+            </span>
+          )}
+          <StageBadge stage={attention.stage_freshness} evidence={attention.evidence_freshness} />
+        </div>
 
         {attention.evidence && attention.evidence.length > 0 && (
           <div className="attn-evidence">

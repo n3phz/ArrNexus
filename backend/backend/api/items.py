@@ -13,6 +13,43 @@ logger = logging.getLogger("arrnexus.api.items")
 router = APIRouter(prefix="/api/items", tags=["items"])
 
 
+def _summary(item) -> dict:
+    """Serialize an item for the list endpoint.
+
+    Kept in one place so the list view and the detail view cannot drift apart.
+    The Phase 4C stage/evidence fields are included here deliberately: they are
+    what lets a list row say "waiting 4h in this stage" separately from "last
+    seen 8d ago", and omitting them here was a real serialization bug.
+    """
+    return {
+        "id": item.correlation_key,
+        "media_type": item.media_type.value,
+        "title": item.title,
+        "season": item.season,
+        "episode": item.episode,
+        "tvdb_id": item.tvdb_id,
+        "tmdb_id": item.tmdb_id,
+        "imdb_id": item.imdb_id,
+        "current_state": item.current_state.value,
+        "progress": item.progress,
+        "current_service": item.current_service.value if item.current_service else None,
+        "last_event_at": item.last_event.timestamp.isoformat() if item.last_event else None,
+        "next_expected_state": item.next_expected_state.value if item.next_expected_state else None,
+        "event_count": len(item.events),
+        "first_seen_at": item.events[0].timestamp.isoformat() if item.events else None,
+        "confidence": item.confidence,
+        "confidence_basis": item.confidence_basis,
+        "evidence_boundary": item.evidence_boundary.value,
+        "stage_start_time": item.stage_start_time.isoformat() if item.stage_start_time else None,
+        "stage_duration_seconds": item.stage_duration_seconds,
+        "stage_freshness": item.stage_freshness,
+        "missing_transition": item.missing_transition.value if item.missing_transition else None,
+        "transition_evidence": item.transition_evidence,
+        "evidence_age_seconds": item.evidence_age_seconds,
+        "evidence_freshness": item.evidence_freshness,
+    }
+
+
 @router.get("", response_model=List[dict], summary="List all media items")
 def list_items(
     db: Session = Depends(get_db),
@@ -57,29 +94,7 @@ def list_items(
     total = len(items)
     items = items[offset:offset + limit]
     
-    return [
-        {
-            "id": item.correlation_key,
-            "media_type": item.media_type.value,
-            "title": item.title,
-            "season": item.season,
-            "episode": item.episode,
-            "tvdb_id": item.tvdb_id,
-            "tmdb_id": item.tmdb_id,
-            "imdb_id": item.imdb_id,
-            "current_state": item.current_state.value,
-            "progress": item.progress,
-            "current_service": item.current_service.value if item.current_service else None,
-            "last_event_at": item.last_event.timestamp.isoformat() if item.last_event else None,
-            "next_expected_state": item.next_expected_state.value if item.next_expected_state else None,
-            "event_count": len(item.events),
-            "first_seen_at": item.events[0].timestamp.isoformat() if item.events else None,
-            "confidence": item.confidence,
-            "confidence_basis": item.confidence_basis,
-            "evidence_boundary": item.evidence_boundary.value,
-        }
-        for item in items
-    ]
+    return [_summary(item) for item in items]
 
 
 @router.get("/{item_id}", response_model=dict, summary="Get media item detail")

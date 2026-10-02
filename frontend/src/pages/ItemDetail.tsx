@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { AttentionItem, Explanation, ItemDetail as ItemDetailData } from '../types';
 import EmptyState from '../components/EmptyState';
 import EvidenceBadge from '../components/EvidenceBadge';
+import StageBadge, { elapsed } from '../components/StageBadge';
 import StateBadge from '../components/StateBadge';
 import Timeline from '../components/Timeline';
 import WhyBlock from '../components/WhyBlock';
@@ -170,6 +171,63 @@ export const ItemDetail: React.FC = () => {
         </div>
       </section>
 
+      <section className="panel">
+        <div className="panel-head">
+          <span className="panel-title">Stage</span>
+          <StageBadge stage={item.stage_freshness} evidence={item.evidence_freshness} />
+        </div>
+        <div className="panel-body tight">
+          <div className="kv">
+            <div className="kv-item">
+              <div className="kv-label">Time in this stage</div>
+              <div className="kv-value mono">
+                {elapsed(item.stage_duration_seconds)}
+                {item.stage_start_time && (
+                  <div className="tiny faint" style={{ marginTop: 2 }}>
+                    since {when(item.stage_start_time)}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="kv-item">
+              <div className="kv-label">Last observation</div>
+              <div className="kv-value mono">
+                {elapsed(item.evidence_age_seconds)} ago
+                <div className="tiny faint" style={{ marginTop: 2 }}>
+                  {item.evidence_freshness === 'STALE'
+                    ? 'conclusions here rest on historical data'
+                    : 'evidence is recent'}
+                </div>
+              </div>
+            </div>
+            <div className="kv-item">
+              <div className="kv-label">Awaiting transition</div>
+              <div className="kv-value">
+                {item.missing_transition ? (
+                  <StateBadge state={item.missing_transition} label={`awaiting ${item.missing_transition.replace(/_/g, ' ')}`} />
+                ) : (
+                  <span className="faint">
+                    {item.current_state === 'available'
+                      ? 'nothing further expected'
+                      : 'no outstanding transition'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          {item.transition_evidence && item.transition_evidence.length > 0 && (
+            <div className="stage-evidence">
+              <div className="attn-why-label">What the evidence shows</div>
+              <ul>
+                {item.transition_evidence.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </section>
+
       {explanation && (
         <WhyBlock
           reason={explanation.reason}
@@ -223,7 +281,7 @@ export const ItemDetail: React.FC = () => {
           <span className="tiny faint mono">{item.timeline.length} observations</span>
         </div>
         <div className="panel-body tight">
-          <Timeline events={item.timeline} />
+          <Timeline events={item.timeline} stageStart={item.stage_start_time} />
         </div>
       </section>
     </div>

@@ -8,6 +8,37 @@ from backend.correlation.matching import _titles_overlap
 
 logger = logging.getLogger("arrnexus.correlation")
 
+# Phase 4C: single source of truth for how long each pipeline stage is expected
+# to take. The correlation engine uses this to classify stage freshness, and the
+# orchestrator uses the SAME table to decide UNUSUALLY_LONG_STAGE attention.
+# Keeping one table prevents the engine and the attention layer from disagreeing
+# about whether the same elapsed time is "stale".
+#
+# Only stages bounded by *our* actions appear here. A stage is included when
+# something we control is expected to happen within a known window (a grab
+# should hand off to a download; a download should hand off to an import).
+#
+# Deliberately ABSENT: wanted and search_started. Both are bounded by when a
+# release comes into existence, not by anything we do, so they are unbounded.
+# A season finale that has not aired yet legitimately stays in search_started for
+# months; giving it a duration threshold would manufacture an incident out of
+# ordinary waiting.
+STAGE_DURATION_SECONDS: Dict[EventType, float] = {
+    EventType.RELEASE_GRABBED: 3600.0,     # expect download_started within 1h
+    EventType.DOWNLOAD_STARTED: 7200.0,    # expect progress within 2h
+    EventType.DOWNLOAD_PROGRESS: 7200.0,   # expect progress within 2h
+    EventType.DOWNLOAD_COMPLETED: 3600.0,  # expect import_started within 1h
+    EventType.IMPORT_STARTED: 3600.0,      # expect import_completed within 1h
+}
+
+# Evidence recency is a SEPARATE concept from stage age.
+#   stage age   = how long the item has occupied its current pipeline stage
+#   evidence age= how long since we last observed ANY event for the item
+# An item can be old in a stage while its evidence is still fresh (polling keeps
+# reporting), and evidence can be ancient while the item is trivially complete.
+EVIDENCE_AGE_FRESH_SECONDS = 3600.0        # < 1h  => CURRENT
+EVIDENCE_AGE_AGED_SECONDS = 86400.0        # < 24h => AGED, else STALE
+
 
 def _norm_ts(ts: Optional[datetime]) -> Optional[datetime]:
     """Normalize any event timestamp to naive-UTC so aware and naive values
@@ -48,6 +79,16 @@ class CorrelationResult:
         self.confidence_basis = self._determine_confidence_basis()
         self.download_attempts = self._determine_download_attempts()
         self.evidence_boundary = self._determine_evidence_boundary()
+        # Phase 4C stage intelligence. Stage age answers "how long have we been
+        # in this state"; evidence age answers "how long since we last heard
+        # anything". They are computed independently and never substituted.
+        self.stage_start_time = self._determine_stage_start_time()
+        self.stage_duration_seconds = self._determine_stage_duration()
+        self.stage_freshness = self._determine_stage_freshness()
+        self.evidence_age_seconds = self._determine_evidence_age()
+        self.evidence_freshness = self._determine_evidence_freshness()
+        self.missing_transition = self._determine_missing_transition()
+        self.transition_evidence = self._determine_transition_evidence()
 
     def _determine_current_state(self) -> EventType:
         """Determine current state from most recent event using StateMachine."""
@@ -183,6 +224,142 @@ class CorrelationResult:
 
         return EvidenceBoundary.UNKNOWN
 
+    def _determine_stage_start_time(self) -> Optional[datetime]:
+        """Determine when the item entered its current pipeline stage.
+
+        The stage starts at the FIRST event of the current *contiguous run* of
+        the current state, not simply the most recent matching event. Services
+        re-report the same state on every poll (an item sitting in ``wanted`` is
+        re-observed every few minutes), so anchoring on the newest matching
+        event would pin the stage age to ~0 forever and make every duration-based
+        rule silently inert.
+
+        Returns None when the current state was derived rather than observed
+        (e.g. STUCK, which the state machine infers from stalled qBittorrent
+        metadata) AND no event of that type exists in the timeline. Callers must
+        treat None as "stage age unknown" and must not substitute evidence age.
+        """
+        if not self.events:
+            return None
+
+        current_state = self.current_state
+
+        # Walk back to the start of the current run of this state.
+        start_index = len(self.events) - 1
+        while start_index > 0 and self.events[start_index - 1].event_type == current_state:
+            start_index -= 1
+
+        if self.events[start_index].event_type == current_state:
+            return self.events[start_index].timestamp
+
+        # Current state is derived (e.g. STUCK) and is not present as an event.
+        # Stage age is genuinely unknown; do not fabricate it from event history.
+        return None
+
+    def _determine_stage_duration(self) -> Optional[float]:
+        """Seconds spent in the current stage, or None when unknown."""
+        if self.stage_start_time is None:
+            return None
+        return (datetime.utcnow() - self.stage_start_time).total_seconds()
+
+    def _determine_stage_freshness(self) -> str:
+        """Classify how the current stage compares to its expected duration.
+
+        RECENT - stage age is within the expected duration for this state
+        STALE   - stage age exceeds the expected duration for this state
+        UNKNOWN - stage age is unknown, or this state has no expected duration
+
+        This deliberately uses the shared STAGE_DURATION_SECONDS table so the
+        engine and the attention layer can never disagree about the same elapsed
+        time. States with no entry (WANTED, AVAILABLE, failures) are UNKNOWN:
+        an absent threshold means "no opinion", not "stale".
+        """
+        if self.stage_duration_seconds is None:
+            return "UNKNOWN"
+
+        expected = STAGE_DURATION_SECONDS.get(self.current_state)
+        if expected is None:
+            return "UNKNOWN"
+
+        return "RECENT" if self.stage_duration_seconds < expected else "STALE"
+
+    def _determine_evidence_age(self) -> Optional[float]:
+        """Seconds since the most recent observation, regardless of its state."""
+        if not self.events:
+            return None
+        return (datetime.utcnow() - self.events[-1].timestamp).total_seconds()
+
+    def _determine_evidence_freshness(self) -> str:
+        """Classify recency of the last observation for this item.
+
+        CURRENT - observed within the last hour
+        AGED    - observed within the last 24h
+        STALE   - last observation older than 24h
+        UNKNOWN - no observations at all
+
+        This is a property of the *observation*, not of the pipeline. It exists
+        so the UI can say "this conclusion rests on evidence from 8 days ago"
+        without that fact by itself being treated as an incident.
+        """
+        if self.evidence_age_seconds is None:
+            return "UNKNOWN"
+        if self.evidence_age_seconds < EVIDENCE_AGE_FRESH_SECONDS:
+            return "CURRENT"
+        if self.evidence_age_seconds < EVIDENCE_AGE_AGED_SECONDS:
+            return "AGED"
+        return "STALE"
+
+    def _determine_missing_transition(self) -> Optional[EventType]:
+        """The transition expected from the current state that was not observed.
+
+        Only counts as missing when the item is genuinely waiting: if the
+        expected transition already appears in the timeline *after* the stage
+        started, the stage simply has not been re-evaluated yet and we report
+        None rather than a misleading "missing" claim.
+        """
+        expected = self.next_expected_state
+        if expected is None or self.stage_start_time is None:
+            return None
+        for event in self.events:
+            if event.event_type == expected and event.timestamp >= self.stage_start_time:
+                return None
+        return expected
+
+    def _determine_transition_evidence(self) -> List[str]:
+        """Explain, in evidence terms, what the item is waiting on.
+
+        Restricted to events at or after the current stage start so a historical
+        occurrence of the expected transition cannot be reported as if it
+        satisfied the current wait.
+        """
+        evidence: List[str] = []
+        expected = self.next_expected_state
+
+        if expected is None:
+            evidence.append("No further transition expected from this state")
+            return evidence
+
+        if self.stage_start_time is None:
+            evidence.append(
+                f"Current state was derived rather than observed, so the wait for "
+                f"{expected.value} cannot be timed"
+            )
+            return evidence
+
+        observed_after_stage = any(
+            e.event_type == expected and e.timestamp >= self.stage_start_time
+            for e in self.events
+        )
+        if observed_after_stage:
+            evidence.append(f"{expected.value} was observed after the stage began")
+            return evidence
+
+        evidence.append(f"Expected transition {expected.value} has not been observed since the stage began")
+        if self.stage_duration_seconds is not None:
+            hours = self.stage_duration_seconds / 3600.0
+            evidence.append(f"Waiting {hours:.1f}h in {self.current_state.value} for {expected.value}")
+        return evidence
+
     def _determine_download_attempts(self) -> List[Dict[str, Any]]:
         """Extract distinct download attempts from events."""
         attempts = []
@@ -285,6 +462,7 @@ class CorrelationResult:
             "last_event_at": self.last_event.timestamp.isoformat() if self.last_event else None,
             "next_expected_state": self.next_expected_state.value if self.next_expected_state else None,
             "event_count": len(self.events),
+            "first_seen_at": self.events[0].timestamp.isoformat() if self.events else None,
             "timeline": [
                 {
                     "timestamp": e.timestamp.isoformat(),
@@ -302,39 +480,15 @@ class CorrelationResult:
             "confidence_basis": self.confidence_basis,
             "download_attempts": self.download_attempts,
             "evidence_boundary": self.evidence_boundary.value,
-        }
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for API response."""
-        return {
-            "correlation_key": self.correlation_key,
-            "media_type": self.media_type.value if self.media_type else None,
-            "media_identifier": self.media_identifier,
-            "title": self.title,
-            "season": self.season,
-            "episode": self.episode,
-            "tvdb_id": self.tvdb_id,
-            "tmdb_id": self.tmdb_id,
-            "imdb_id": self.imdb_id,
-            "current_state": self.current_state.value,
-            "progress": self.progress,
-            "current_service": self.current_service.value if self.current_service else None,
-            "last_event_at": self.last_event.timestamp.isoformat() if self.last_event else None,
-            "next_expected_state": self.next_expected_state.value if self.next_expected_state else None,
-            "event_count": len(self.events),
-            "timeline": [
-                {
-                    "timestamp": e.timestamp.isoformat(),
-                    "source": e.source_service.value,
-                    "event_type": e.event_type.value,
-                    "status": e.status.value,
-                    "error_message": e.error_message,
-                    "normalized_metadata": e.normalized_metadata,
-                }
-                for e in self.events
-            ],
-            "confidence": self.confidence,
-            "download_attempts": self.download_attempts,
+            # Phase 4C stage intelligence. stage_* describe the pipeline stage;
+            # evidence_* describe how recently we last observed anything.
+            "stage_start_time": self.stage_start_time.isoformat() if self.stage_start_time else None,
+            "stage_duration_seconds": self.stage_duration_seconds,
+            "stage_freshness": self.stage_freshness,
+            "missing_transition": self.missing_transition.value if self.missing_transition else None,
+            "transition_evidence": self.transition_evidence,
+            "evidence_age_seconds": self.evidence_age_seconds,
+            "evidence_freshness": self.evidence_freshness,
         }
 
 
@@ -438,6 +592,10 @@ class CorrelationEngine:
                 if new_events:
                     self.items[key].events.extend(new_events)
                     self.items[key].events.sort(key=lambda e: e.timestamp)
+                    # Re-compute derived fields after merge
+                    self.items[key].last_event = self.items[key].events[-1]
+                    self.items[key].evidence_age_seconds = self.items[key]._determine_evidence_age()
+                    self.items[key].evidence_freshness = self.items[key]._determine_evidence_freshness()
                     updated.append(self.items[key])
             else:
                 # Create new item

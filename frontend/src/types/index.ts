@@ -12,7 +12,36 @@ export type AttentionLevel = 'none' | 'possible' | 'required' | 'blocked' | 'syn
 
 export type Severity = 'high' | 'medium' | 'low' | 'none';
 
-export interface MediaItem {
+/* ------------------------------------------------------------------ *
+ * Phase 4C: stage intelligence
+ *
+ * Two independent recency axes. They are deliberately separate fields:
+ *   stage_*    how long the item has occupied its current pipeline stage
+ *   evidence_* how long since ANY observation was recorded for the item
+ *
+ * An item can be overdue in its stage while its evidence is still fresh
+ * (polling keeps re-reporting the same state), and evidence can be ancient
+ * while the item is trivially complete. Collapsing these into one flag
+ * destroys the distinction the backend goes to some length to preserve.
+ * ------------------------------------------------------------------ */
+
+/** How the current stage compares to its expected duration. */
+export type StageFreshness = 'RECENT' | 'STALE' | 'UNKNOWN';
+
+/** How recently this item was observed at all. */
+export type EvidenceFreshness = 'CURRENT' | 'AGED' | 'STALE';
+
+export interface StageIntelligence {
+  stage_start_time?: string | null;
+  stage_duration_seconds?: number | null;
+  stage_freshness?: StageFreshness;
+  missing_transition?: string | null;
+  transition_evidence?: string[];
+  evidence_age_seconds?: number | null;
+  evidence_freshness?: EvidenceFreshness;
+}
+
+export interface MediaItem extends StageIntelligence {
   id: string;
   media_type: 'movie' | 'episode';
   title: string;
@@ -37,7 +66,7 @@ export interface MediaItem {
   guardarr_events?: GuardarrEvent[];
 }
 
-export interface PipelineRow {
+export interface PipelineRow extends StageIntelligence {
   id: string;
   title: string;
   state: string;
@@ -204,7 +233,7 @@ export interface SseEvent {
  * Mirrors backend Orchestrator output (backend/backend/services/orchestrator.py)
  * ------------------------------------------------------------------ */
 
-export interface AttentionItemRef {
+export interface AttentionItemRef extends StageIntelligence {
   id: string;
   title: string;
   media_type: string;
@@ -213,8 +242,10 @@ export interface AttentionItemRef {
   event_count: number;
 }
 
-export interface AttentionItem {
+export interface AttentionItem extends StageIntelligence {
   attention_level: AttentionLevel;
+  /** Stable machine-readable diagnosis code, e.g. GRAB_NO_DOWNLOAD. */
+  attention_class: string;
   reason: string;
   evidence: string[];
   evidence_boundary: EvidenceBoundary;
