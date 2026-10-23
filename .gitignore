@@ -36,6 +36,7 @@ container-logs/
 # Python
 .pyc
 __pycache__/
+*.egg-info/
 
 # Docker dev
 docker-compose.override.yml
@@ -58,6 +59,9 @@ backups/
 *.history
 *.pytest_cache/
 .pytest_cache/
+
+# Incident store (Phase 4D) — dev/override placements must never enter the repo
+incidents.json
 
 # ARR generated
 *.db

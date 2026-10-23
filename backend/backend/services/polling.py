@@ -61,7 +61,12 @@ class PollingService:
                         self._poll_adapter(adapter)
                     except Exception as e:
                         logger.error(f"Error polling {adapter.service_name}: {e}")
-                
+
+                # After a full poll cycle, refresh the incident store from the
+                # current attention evaluation. Best-effort: a store problem
+                # must never stop event ingestion.
+                self._sync_incidents()
+
                 time.sleep(self.poll_interval)
             except Exception as e:
                 logger.error(f"Poll loop error: {e}")
@@ -92,6 +97,29 @@ class PollingService:
             with self._lock:
                 self.last_poll_times[adapter.service_name] = datetime.utcnow()
     
+    def _sync_incidents(self) -> None:
+        """Refresh tracked incidents from the current attention evaluation.
+
+        Called once per full poll cycle (and after force polls) so the
+        incident store follows live conditions without the UI needing to
+        trigger the evaluation. Failures are logged, never raised: the
+        polling loop is the ingestion path and must keep running.
+        """
+        try:
+            from backend.services.incidents import sync_incidents
+
+            db = SessionLocal()
+            try:
+                result = sync_incidents(db)
+                logger.info(
+                    f"Incident sync: {result['created']} created, {result['updated']} updated, "
+                    f"{result['reset']} recurred, {result['total']} attention items"
+                )
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Incident sync failed (polling continues): {e}")
+
     def _broadcast_events(self, events: List[Any]) -> None:
         """Broadcast newly ingested events to SSE clients."""
         if not sse_tracker.get_count():
@@ -144,6 +172,10 @@ class PollingService:
             except Exception as e:
                 logger.error(f"Error forcing poll for {adapter.service_name}: {e}")
                 results[adapter.service_name.value] = 0
+        
+        # A forced poll changes what the attention engine sees; refresh the
+        # incident store so the tracked view matches the just-ingested state.
+        self._sync_incidents()
         
         return results
     
