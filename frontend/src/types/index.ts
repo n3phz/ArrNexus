@@ -275,3 +275,71 @@ export interface ActivityStats {
   today: number;
   total: number;
 }
+
+/* ------------------------------------------------------------------ *
+ * Phase 4D: incident lifecycle
+ * Mirrors backend/backend/api/incidents.py + services/incidents.py.
+ * An *attention item* is a condition that now deserves attention; an
+ * *incident* is a tracked operational problem with a lifecycle:
+ *
+ *   OPEN -> ACKNOWLEDGED -> RESOLVED -> ARCHIVED
+ *
+ * The two are related but deliberately not merged: an attention item may
+ * or may not have a tracked incident; an incident may outlive the moment
+ * its condition was first observed.
+ * ------------------------------------------------------------------ */
+
+export type IncidentStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'ARCHIVED';
+
+export interface Incident {
+  /** Deterministic id: f(correlation_key, attention_class). */
+  id: string;
+  correlation_key: string;
+  attention_class: string;
+  status: IncidentStatus;
+  attention_level?: string;
+  severity?: string;
+  reason?: string;
+  /** Supporting evidence lines from the attention evaluation. */
+  evidence: string[];
+  /** Serialized EvidenceBoundary value (lowercase at the wire). */
+  evidence_boundary?: string;
+  confidence_basis?: string | null;
+  state?: string | null;
+  missing_transition?: string | null;
+  stage_freshness?: StageFreshness;
+  evidence_freshness?: EvidenceFreshness;
+  stage_duration_seconds?: number | null;
+  evidence_age_seconds?: number | null;
+  title?: string | null;
+  media_type?: string | null;
+  last_evidence_at?: string | null;
+  first_observed_at: string;
+  last_observed_at: string;
+  acknowledged_at?: string | null;
+  resolved_at?: string | null;
+  archived_at?: string | null;
+  /** How many times a resolved/archived problem recurred and reset to OPEN. */
+  recurrence_count?: number;
+  last_recurred_at?: string | null;
+}
+
+export interface IncidentStats {
+  total: number;
+  open: number;
+  acknowledged: number;
+  resolved: number;
+  archived: number;
+  /** open + acknowledged: the work that still needs an operator. */
+  active: number;
+  last_sync_at?: string | null;
+}
+
+export interface IncidentSyncResult {
+  created: number;
+  updated: number;
+  reset: number;
+  skipped: number;
+  total: number;
+  last_sync_at?: string | null;
+}

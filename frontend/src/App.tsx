@@ -8,6 +8,8 @@ import Attention from './pages/Attention';
 import Media from './pages/Media';
 import Activity from './pages/Activity';
 import ItemDetailPage from './pages/ItemDetail';
+import Incidents from './pages/Incidents';
+import IncidentDetailPage from './pages/IncidentDetail';
 
 /**
  * Root composition: shared attention state, live-update plumbing, routing.
@@ -20,6 +22,7 @@ function App() {
   const [live, setLive] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [incidentCount, setIncidentCount] = useState(0);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -69,7 +72,9 @@ function App() {
     };
   }, []);
 
-  // Keep the nav attention counter current even when not on the attention page.
+  // Keep the nav counters current even when not on those pages.
+  // The incident counter is the tracked-work figure (open + acknowledged);
+  // attention items are recomputed live and are not the same population.
   useEffect(() => {
     if (refreshKey === 0) return;
     let cancelled = false;
@@ -81,6 +86,14 @@ function App() {
       .catch(() => {
         /* counter is best-effort; the attention view surfaces failures */
       });
+    api
+      .getIncidentStats()
+      .then((stats) => {
+        if (!cancelled) setIncidentCount(stats.active);
+      })
+      .catch(() => {
+        /* the incidents view surfaces failures */
+      });
     return () => {
       cancelled = true;
     };
@@ -91,12 +104,20 @@ function App() {
   ).length;
 
   return (
-    <AppShell attentionCount={attentionCount} live={live} onRefresh={refresh} refreshing={refreshing}>
+    <AppShell
+      attentionCount={attentionCount}
+      incidentCount={incidentCount}
+      live={live}
+      onRefresh={refresh}
+      refreshing={refreshing}
+    >
       <Routes>
         <Route path="/" element={<Overview onData={setAttention} />} />
         <Route path="/attention" element={<Attention onData={setAttention} refreshKey={refreshKey} />} />
         <Route path="/media" element={<Media refreshKey={refreshKey} />} />
         <Route path="/activity" element={<Activity refreshKey={refreshKey} />} />
+        <Route path="/incidents" element={<Incidents refreshKey={refreshKey} />} />
+        <Route path="/incidents/:id" element={<IncidentDetailPage refreshKey={refreshKey} />} />
         <Route path="/item/:id" element={<ItemDetailPage />} />
         <Route path="*" element={<Overview onData={setAttention} />} />
       </Routes>

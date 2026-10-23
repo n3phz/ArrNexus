@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { AttentionItem } from '../types';
+import { AttentionItem, Incident } from '../types';
 import EvidenceBadge from './EvidenceBadge';
 import StageBadge, { elapsed } from './StageBadge';
 import StateBadge from './StateBadge';
@@ -49,13 +49,20 @@ function sinceLabel(ts?: string | null): string {
 
 interface Props {
   attention: AttentionItem;
+  /**
+   * The tracked incident for this exact condition (correlation_key +
+   * attention_class), when one exists in the lifecycle. Only active tracking
+   * (OPEN / ACKNOWLEDGED) is surfaced here: a resolved or archived incident is
+   * history, not current context for the live view.
+   */
+  trackedIncident?: Pick<Incident, 'id' | 'status'>;
 }
 
 /**
  * One operational attention entry.
  * States WHAT needs attention, WHY, and on WHAT evidence — never more than that.
  */
-export const AttentionCard: React.FC<Props> = ({ attention }) => {
+export const AttentionCard: React.FC<Props> = ({ attention, trackedIncident }) => {
   const { item } = attention;
   const severity =
     attention.attention_level === 'blocked'
@@ -90,6 +97,15 @@ export const AttentionCard: React.FC<Props> = ({ attention }) => {
                 .replace(/_/g, ' ')
                 .toLowerCase()}
             </span>
+          )}
+          {trackedIncident && (
+            <Link
+              className="tag inc-link"
+              to={`/incidents/${encodeURIComponent(trackedIncident.id)}`}
+              title={`Tracked in the incident lifecycle as ${trackedIncident.status.toLowerCase()}`}
+            >
+              tracked as incident ({trackedIncident.status.toLowerCase()}) →
+            </Link>
           )}
           {typeof attention.stage_duration_seconds === 'number' && (
             <span

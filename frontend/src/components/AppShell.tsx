@@ -3,12 +3,14 @@ import { NavLink } from 'react-router-dom';
 const LINKS = [
   { to: '/', label: 'Overview', end: true },
   { to: '/attention', label: 'Attention', end: false },
+  { to: '/incidents', label: 'Incidents', end: false },
   { to: '/media', label: 'Media', end: false },
   { to: '/activity', label: 'Activity', end: false },
 ];
 
 interface Props {
   attentionCount: number;
+  incidentCount: number;
   live: boolean;
   onRefresh: () => void;
   refreshing?: boolean;
@@ -17,8 +19,19 @@ interface Props {
 
 /**
  * Application shell: identity, live-connection state, compact navigation.
+ *
+ * Two deliberately distinct counters in the nav:
+ *   Attention  — live conditions that need looking at right now
+ *   Incidents  — tracked problems an operator owns through a lifecycle
  */
-export const AppShell: React.FC<Props> = ({ attentionCount, live, onRefresh, refreshing, children }) => (
+export const AppShell: React.FC<Props> = ({
+  attentionCount,
+  incidentCount,
+  live,
+  onRefresh,
+  refreshing,
+  children,
+}) => (
   <div className="shell">
     <header className="shell-header">
       <div className="shell-header-row">
@@ -54,6 +67,15 @@ export const AppShell: React.FC<Props> = ({ attentionCount, live, onRefresh, ref
             {l.to === '/attention' && attentionCount > 0 && (
               <span className="nav-count" aria-label={`${attentionCount} items requiring attention`}>
                 {attentionCount}
+              </span>
+            )}
+            {l.to === '/incidents' && incidentCount > 0 && (
+              <span
+                className="nav-count"
+                data-tone="calm"
+                aria-label={`${incidentCount} incidents need an operator`}
+              >
+                {incidentCount}
               </span>
             )}
           </NavLink>

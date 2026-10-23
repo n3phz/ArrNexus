@@ -7,6 +7,10 @@ import {
   AttentionStats,
   ActivityStats,
   ItemDetail,
+  TimelineEvent,
+  Incident,
+  IncidentStats,
+  IncidentSyncResult,
 } from '../types';
 
 const API_BASE = '/api';
@@ -39,7 +43,8 @@ export const api = {
 
   getItem: (id: string) => request<ItemDetail>(`/items/${encodeURIComponent(id)}`),
 
-  getItemTimeline: (id: string) => request(`/items/${encodeURIComponent(id)}/timeline`),
+  getItemTimeline: (id: string) =>
+    request<TimelineEvent[]>(`/items/${encodeURIComponent(id)}/timeline`),
 
   getItemExplanation: (id: string) =>
     request<Explanation>(`/items/${encodeURIComponent(id)}/explain`),
@@ -73,4 +78,24 @@ export const api = {
   }) => request<Event[]>(`/activity${qs({ limit: 100, days: 7, ...params })}`),
 
   getActivityStats: (days = 7) => request<ActivityStats>(`/activity/stats${qs({ days })}`),
+
+  // Phase 4D: incident lifecycle
+  getIncidents: (params?: { status?: string }) =>
+    request<Incident[]>(`/incidents${qs({ ...params })}`),
+
+  getIncident: (id: string) => request<Incident>(`/incidents/${encodeURIComponent(id)}`),
+
+  getIncidentStats: () => request<IncidentStats>('/incidents/stats'),
+
+  acknowledgeIncident: (id: string) =>
+    request<Incident>(`/incidents/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }),
+
+  resolveIncident: (id: string) =>
+    request<Incident>(`/incidents/${encodeURIComponent(id)}/resolve`, { method: 'POST' }),
+
+  archiveIncident: (id: string) =>
+    request<Incident>(`/incidents/${encodeURIComponent(id)}/archive`, { method: 'POST' }),
+
+  /** Data refresh (not a lifecycle action): re-evaluate attention into the store. */
+  syncIncidents: () => request<IncidentSyncResult>('/incidents/sync', { method: 'POST' }),
 };

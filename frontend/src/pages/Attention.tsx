@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../services/api';
-import { AttentionItem } from '../types';
+import { AttentionItem, Incident } from '../types';
 import AttentionCard from '../components/AttentionCard';
 import EmptyState from '../components/EmptyState';
 
@@ -18,6 +19,7 @@ export const Attention: React.FC<Props> = ({ onData, refreshKey }) => {
   const [includeBlocked, setIncludeBlocked] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +40,19 @@ export const Attention: React.FC<Props> = ({ onData, refreshKey }) => {
         if (!cancelled) setLoading(false);
       });
 
+    // Active-incident tracking (OPEN/ACKNOWLEDGED only) for the
+    // "tracked as incident" chips. Best-effort: a failure here must not
+    // degrade the attention view itself.
+    api
+      .getIncidents()
+      .then((all) => {
+        if (cancelled) return;
+        setIncidents(all.filter((i) => i.status === 'OPEN' || i.status === 'ACKNOWLEDGED'));
+      })
+      .catch(() => {
+        if (!cancelled) setIncidents([]);
+      });
+
     return () => {
       cancelled = true;
     };
@@ -47,6 +62,12 @@ export const Attention: React.FC<Props> = ({ onData, refreshKey }) => {
   const required = items.filter((i) => i.attention_level === 'required');
   const possible = items.filter((i) => i.attention_level === 'possible');
   const blocked = items.filter((i) => i.attention_level === 'blocked');
+
+  // An attention condition and its tracked incident share (item, class).
+  const trackedFor = (a: AttentionItem) =>
+    incidents.find(
+      (i) => i.correlation_key === a.item.id && i.attention_class === a.attention_class,
+    );
 
   const Group = ({
     title,
@@ -69,7 +90,7 @@ export const Attention: React.FC<Props> = ({ onData, refreshKey }) => {
           </p>
         </div>
         {rows.map((a) => (
-          <AttentionCard key={a.item.id} attention={a} />
+          <AttentionCard key={a.item.id} attention={a} trackedIncident={trackedFor(a)} />
         ))}
       </section>
     );
@@ -91,6 +112,9 @@ export const Attention: React.FC<Props> = ({ onData, refreshKey }) => {
           <p className="page-sub">
             Items surfaced from observed state. Every conclusion is labelled with the evidence it rests
             on — age alone never raises an alert.
+            <br />
+            Problems you start owning are <Link to="/incidents">incidents</Link> — attention is the
+            condition now, an incident is the tracked lifecycle.
           </p>
         </div>
         <button
