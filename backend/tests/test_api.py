@@ -5,20 +5,33 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 from backend.main import application
+from backend.database.base import init_db
 from backend.adapters.base import SourceService, MediaType, EventType, EventStatus, RawEvent, ActiveItem, ServiceHealth
 from backend.correlation.engine import CorrelationResult
 
 
 @pytest.fixture
 def client():
-    """Create test client."""
+    """Create test client.
+
+    The client is deliberately not used as a context manager: entering the
+    context runs the application lifespan, which starts the live polling
+    service. `init_db()` runs the same table-creation step the lifespan
+    performs, so the events endpoints can query their tables hermetically.
+    """
+    init_db()
     return TestClient(application)
 
 
 @pytest.fixture
 def mock_adapter():
-    """Mock adapter for testing."""
-    with patch('backend.adapters.get_all_adapters') as mock:
+    """Mock adapter for testing.
+
+    Patches the *consumer* binding (services.py imported the function by
+    name at module level), so the endpoint under test actually sees the
+    mock instead of making real network calls to the *Arr services.
+    """
+    with patch('backend.api.services.get_all_adapters') as mock:
         adapter = MagicMock()
         adapter.service_name = SourceService.RADARR
         adapter.health.return_value = ServiceHealth(
@@ -76,9 +89,14 @@ class TestServicesEndpoints:
         assert data["status"] == "healthy"
     
     def test_get_unknown_service(self, client):
-        """Test getting unknown service."""
+        """Test getting unknown service.
+
+        Unknown service names are a client error: the endpoint returns 404
+        with a machine-usable detail (previously a bare Exception -> 500).
+        """
         response = client.get("/api/services/unknown")
-        assert response.status_code == 500
+        assert response.status_code == 404
+        assert "Service not found: unknown" in response.json()["detail"]
 
 
 class TestItemsEndpoints:
