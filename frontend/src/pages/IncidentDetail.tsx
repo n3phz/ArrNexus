@@ -50,12 +50,16 @@ export const IncidentDetail: React.FC<Props> = ({ refreshKey }) => {
     setLoading(true);
     setError(null);
 
-    Promise.all([
-      api.getIncident(id),
-      api.getItemTimeline(id).catch(() => [] as TimelineEvent[]),
-      api.getAttention({ limit: 200 }).catch(() => [] as AttentionItem[]),
-    ])
-      .then(([inc, tl, att]) => {
+    // The incident first: its correlation_key — not its lifecycle id — is
+    // the identifier the item/timeline endpoints understand.
+    api
+      .getIncident(id)
+      .then(async (inc) => {
+        if (cancelled) return;
+        const [tl, att] = await Promise.all([
+          api.getItemTimeline(inc.correlation_key).catch(() => [] as TimelineEvent[]),
+          api.getAttention({ limit: 200 }).catch(() => [] as AttentionItem[]),
+        ]);
         if (cancelled) return;
         setIncident(inc);
         setTimeline(tl);
