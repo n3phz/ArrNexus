@@ -4,10 +4,11 @@ import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.api.health import router as health_router
 from backend.api.items import router as items_router
@@ -85,10 +86,49 @@ def create_application() -> FastAPI:
     app.include_router(attention_router)
     app.include_router(incidents_router)
 
-    # Serve the React SPA from the bundled dist directory
-    frontend_path = "/app/frontend/dist"
-    if os.path.isdir(frontend_path):
-        app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+    # Serve the React SPA static assets from the bundled dist directory
+    # Support both Docker (/app/frontend/dist) and local development paths
+    import pathlib
+    possible_paths = [
+        "/app/frontend/dist",  # Docker
+        str(pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"),  # Local dev
+    ]
+    frontend_path = next((p for p in possible_paths if os.path.isdir(p)), None)
+    if frontend_path:
+        app.mount("/", StaticFiles(directory=frontend_path, html=False), name="frontend")
+
+    # SPA fallback middleware: serve index.html for non-API, non-asset routes
+    # that return 404 from the static files mount
+    class SPAFallbackMiddleware(BaseHTTPMiddleware):
+        def __init__(self, app, frontend_path: str):
+            super().__init__(app)
+            self.frontend_path = frontend_path
+            self.index_file = os.path.join(frontend_path, "index.html") if frontend_path else None
+
+        async def dispatch(self, request: Request, call_next):
+            # Let the request go through normal routing (API, StaticFiles)
+            response = await call_next(request)
+            
+            # If we got a 404 and it's not an API or static asset path,
+            # serve the SPA index.html
+            if response.status_code == 404 and self.index_file and os.path.isfile(self.index_file):
+                path = request.url.path.lstrip("/")
+                # Exclude API routes
+                if path.startswith("api/"):
+                    return response
+                # Exclude static assets
+                if path.startswith("assets/"):
+                    return response
+                # Exclude favicon and other root-level static files
+                if path in ("favicon.ico", "robots.txt", "vite.svg"):
+                    return response
+                # Serve index.html for SPA routes
+                return FileResponse(self.index_file)
+            
+            return response
+
+    if frontend_path:
+        app.add_middleware(SPAFallbackMiddleware, frontend_path=frontend_path)
 
     return app
 

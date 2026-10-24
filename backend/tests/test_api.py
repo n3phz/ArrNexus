@@ -167,3 +167,78 @@ class TestForcePoll:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestSPADeepLinks:
+    """Regression tests for SPA deep-link fix.
+
+    Direct navigation to SPA routes (/incidents, /attention, /media, /activity)
+    must serve index.html, not API 404 JSON. API routes and static assets
+    must continue to work correctly.
+    """
+
+    def test_spa_root_serves_html(self, client):
+        """Root path serves the SPA index.html."""
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "ArrNexus" in response.text
+
+    def test_spa_incidents_serves_html(self, client):
+        """Direct /incidents navigation serves the SPA index.html."""
+        response = client.get("/incidents")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "ArrNexus" in response.text
+
+    def test_spa_attention_serves_html(self, client):
+        """Direct /attention navigation serves the SPA index.html."""
+        response = client.get("/attention")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "ArrNexus" in response.text
+
+    def test_spa_media_serves_html(self, client):
+        """Direct /media navigation serves the SPA index.html."""
+        response = client.get("/media")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "ArrNexus" in response.text
+
+    def test_spa_activity_serves_html(self, client):
+        """Direct /activity navigation serves the SPA index.html."""
+        response = client.get("/activity")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "ArrNexus" in response.text
+
+    def test_api_routes_return_json_not_html(self, client):
+        """API routes return JSON 404, not HTML."""
+        response = client.get("/api/unknown")
+        assert response.status_code == 404
+        assert "application/json" in response.headers.get("content-type", "")
+        assert response.json()["detail"] == "Not Found"
+
+    def test_api_incidents_works(self, client):
+        """API incidents endpoint works correctly."""
+        response = client.get("/api/incidents")
+        assert response.status_code == 200
+        assert "application/json" in response.headers.get("content-type", "")
+        assert isinstance(response.json(), list)
+
+    def test_static_assets_served(self, client):
+        """Static assets are served by StaticFiles (404 if not present in test env)."""
+        # In test environment, frontend/dist may not exist, so we just verify
+        # the path is not caught by SPA fallback (would return HTML)
+        response = client.get("/assets/nonexistent.js")
+        # Should be 404, but with either JSON or plain text - NOT HTML
+        assert response.status_code == 404
+        content_type = response.headers.get("content-type", "")
+        assert "text/html" not in content_type
+
+    def test_favicon_excluded_from_spa(self, client):
+        """Favicon requests return 404, not HTML."""
+        response = client.get("/favicon.ico")
+        assert response.status_code == 404
+        content_type = response.headers.get("content-type", "")
+        assert "text/html" not in content_type
