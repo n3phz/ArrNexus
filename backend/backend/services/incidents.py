@@ -112,6 +112,12 @@ class IncidentStore:
         self._lock = threading.RLock()
         self._incidents: Dict[str, Dict[str, Any]] = {}
         self._last_sync_at: Optional[str] = None
+        # Fail-closed flag: if the on-disk store could not be parsed, we must
+        # not silently overwrite it with an empty in-memory store. The corrupt
+        # file is quarantined on the first save so the evidence survives for
+        # manual recovery, and operators see a CRITICAL log, not a shrug.
+        self._load_failed = False
+        self._load_error: Optional[str] = None
         self._load()
 
     # -- persistence -------------------------------------------------------
@@ -128,12 +134,35 @@ class IncidentStore:
             self._incidents = {k: v for k, v in data.get("incidents", {}).items()}
             self._last_sync_at = data.get("last_sync_at")
         except (json.JSONDecodeError, OSError) as exc:
-            # A corrupt store must not take the API down; keep it readable
-            # and log loudly so an operator restores it from backup.
+            # Keep the in-memory store empty and refuse to clobber the file
+            # until it is quarantined (see _save). The app stays up: an empty
+            # incident view is fail-closed, not a data-loss event.
+            self._load_failed = True
+            self._load_error = f"{type(exc).__name__}: {exc}"
             logger.error(f"Incident store unreadable at {self.path}: {exc}")
+
+    def _quarantine_corrupt_file(self) -> None:
+        """Move an unreadable store file aside (with a timestamp) and clear
+        the fail-closed flag. The quarantined copy is the recovery source;
+        it is never deleted by the application."""
+        stamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        corrupt_path = f"{self.path}.corrupt-{stamp}"
+        try:
+            os.replace(self.path, corrupt_path)
+            logger.critical(
+                f"Incident store at {self.path} was unreadable ({self._load_error}); "
+                f"quarantined to {corrupt_path}. Store restarted empty; restore "
+                f"incidents from the quarantined file or backup before relying on it."
+            )
+        except OSError as exc:
+            logger.critical(f"Could not quarantine corrupt incident store: {exc}")
+        self._load_failed = False
+        self._load_error = None
 
     def _save(self) -> None:
         """Atomic write: dump to a temp file in the same directory, then rename."""
+        if self._load_failed and os.path.exists(self.path):
+            self._quarantine_corrupt_file()
         parent = os.path.dirname(os.path.abspath(self.path))
         if parent and not os.path.isdir(parent):
             os.makedirs(parent, exist_ok=True)
@@ -153,6 +182,11 @@ class IncidentStore:
             except OSError:
                 pass
             raise
+
+    @property
+    def load_failed(self) -> bool:
+        """True while the store file could not be parsed (fail-closed mode)."""
+        return self._load_failed
 
     # -- creation / upsert --------------------------------------------------
 
@@ -363,11 +397,14 @@ def _default_store_path() -> str:
     override = os.environ.get("INCIDENT_STORE_PATH")
     if override:
         return override
-    # Production deployments mount a persistent /data volume (where the
-    # SQLite database also lives); keep the incident store beside it so
-    # restarts never lose tracked work.
-    if os.path.isdir("/data"):
-        return "/data/incidents.json"
+    # Production deployments keep persistent state on a mounted volume.
+    # The live Saltbox compose runs the database at sqlite:////config/arrnexus.db,
+    # so /config is the persistent directory in the current image layout;
+    # /data is the compose file shipped in this repository. Prefer whichever
+    # exists, so the incident store survives container recreation.
+    for candidate in ("/config/incidents.json", "/data/incidents.json"):
+        if os.path.isdir(os.path.dirname(candidate)):
+            return candidate
     # Development default: beside the default development database
     # (/tmp/arrnexus/arrnexus.db, see core/config.py) so a plain
     # `uvicorn` run in a checkout never drops state files into the repo.
