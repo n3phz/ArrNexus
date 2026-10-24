@@ -18,8 +18,21 @@ const MEANING: Record<EvidenceBoundary, string> = {
   SYNTHETIC: 'SYNTHETIC — test or synthetic data, not from the live environment',
 };
 
+/**
+ * The API serializes EvidenceBoundary with its lowercase enum value
+ * ("observed", "blocked", …) while the design system and CSS speak uppercase
+ * ("OBSERVED", …). Normalising at this display boundary keeps the wire format
+ * untouched — evidence semantics are a backend concern, casing is not.
+ */
+export function normalizeBoundary(boundary?: string): EvidenceBoundary | undefined {
+  if (!boundary) return undefined;
+  const upper = boundary.toUpperCase() as EvidenceBoundary;
+  return upper in LETTER ? upper : undefined;
+}
+
 interface Props {
-  boundary?: EvidenceBoundary;
+  /** Accepts the wire value (lowercase) or the type value (uppercase). */
+  boundary?: EvidenceBoundary | string;
   solid?: boolean;
   showLabel?: boolean;
 }
@@ -29,18 +42,19 @@ interface Props {
  * Letter + accessible title, never colour alone.
  */
 export const EvidenceBadge: React.FC<Props> = ({ boundary, solid, showLabel }) => {
-  if (!boundary) return null;
+  const value = normalizeBoundary(boundary);
+  if (!value) return null;
   return (
     <span
       className={solid ? 'ev ev-solid' : 'ev'}
-      data-ev={boundary}
-      title={MEANING[boundary]}
-      aria-label={MEANING[boundary]}
+      data-ev={value}
+      title={MEANING[value]}
+      aria-label={MEANING[value]}
     >
       <span className="ev-letter" aria-hidden="true">
-        {LETTER[boundary]}
+        {LETTER[value]}
       </span>
-      {showLabel && <span aria-hidden="true">{boundary.toLowerCase()}</span>}
+      {showLabel && <span aria-hidden="true">{value.toLowerCase()}</span>}
     </span>
   );
 };

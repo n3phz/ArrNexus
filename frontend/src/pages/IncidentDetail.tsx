@@ -163,7 +163,7 @@ export const IncidentDetail: React.FC<Props> = ({ refreshKey }) => {
         </div>
         <div className="row-wrap">
           <StateBadge state={incident.state ?? undefined} />
-          <EvidenceBadge boundary={(incident.evidence_boundary as any) ?? undefined} solid showLabel />
+          <EvidenceBadge boundary={incident.evidence_boundary} solid showLabel />
         </div>
       </header>
 
@@ -176,7 +176,7 @@ export const IncidentDetail: React.FC<Props> = ({ refreshKey }) => {
       <WhyBlock
         reason={incident.reason ?? 'No explanation was recorded with this incident.'}
         evidence={incident.evidence}
-        evidenceBoundary={(incident.evidence_boundary as any) ?? undefined}
+        evidenceBoundary={incident.evidence_boundary}
         confidenceBasis={incident.confidence_basis ?? null}
         heading="Why this is an incident"
       />

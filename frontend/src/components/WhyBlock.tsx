@@ -1,10 +1,11 @@
 import { EvidenceBoundary } from '../types';
-import EvidenceBadge from './EvidenceBadge';
+import EvidenceBadge, { normalizeBoundary } from './EvidenceBadge';
 
 interface Props {
   reason: string;
   evidence?: string[];
-  evidenceBoundary?: EvidenceBoundary;
+  /** Wire values arrive lowercase; the type says uppercase. */
+  evidenceBoundary?: EvidenceBoundary | string;
   confidenceBasis?: string | null;
   heading?: string;
 }
@@ -20,6 +21,10 @@ export const WhyBlock: React.FC<Props> = ({
   confidenceBasis,
   heading = 'Why',
 }) => {
+  // Normalise once; the heading rules and the CSS accent both key off the
+  // uppercase design-system value while the API sends lowercase.
+  const boundary = normalizeBoundary(evidenceBoundary);
+
   const headingFor = (ev?: EvidenceBoundary) => {
     if (ev === 'BLOCKED') return 'Why diagnosis is blocked';
     if (ev === 'UNKNOWN') return 'Why this is unknown';
@@ -29,8 +34,8 @@ export const WhyBlock: React.FC<Props> = ({
   };
 
   return (
-    <section className="why" data-ev={evidenceBoundary} aria-label={headingFor(evidenceBoundary)}>
-      <div className="why-label">{headingFor(evidenceBoundary)}</div>
+    <section className="why" data-ev={boundary} aria-label={headingFor(boundary)}>
+      <div className="why-label">{headingFor(boundary)}</div>
       <p className="why-text">{reason}</p>
 
       {evidence && evidence.length > 0 && (
@@ -48,7 +53,7 @@ export const WhyBlock: React.FC<Props> = ({
         <span className="attn-why-label" style={{ margin: 0 }}>
           Evidence
         </span>
-        <EvidenceBadge boundary={evidenceBoundary} solid showLabel />
+        <EvidenceBadge boundary={boundary} solid showLabel />
         {confidenceBasis && (
           <span className="tiny faint mono" title="Why this correlation confidence was assigned">
             basis: {confidenceBasis}

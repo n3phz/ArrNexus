@@ -111,7 +111,7 @@ export const IncidentCard: React.FC<Props> = ({ incident, onAction, activeInAtte
           </span>
           <span className="tiny faint mono">{incident.media_type ?? ''}</span>
           <StateBadge state={incident.state ?? undefined} />
-          <EvidenceBadge boundary={(incident.evidence_boundary as any) ?? undefined} solid showLabel />
+          <EvidenceBadge boundary={incident.evidence_boundary} solid showLabel />
         </header>
 
         <div className="attn-why-label">
