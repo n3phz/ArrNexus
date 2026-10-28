@@ -4,7 +4,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -30,6 +30,31 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("arrnexus")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+    
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        
+        # Prevent clickjacking
+        response.headers["X-Frame-Options"] = "DENY"
+        
+        # Referrer policy - only send origin on cross-origin requests
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # Permissions policy - disable unused features
+        response.headers["Permissions-Policy"] = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        
+        # Note: HSTS is handled by Traefik at the edge (TLS termination)
+        # Note: CSP is intentionally not set here to avoid breaking the SPA;
+        # Traefik or a dedicated CSP middleware can add it if needed.
+        
+        return response
 
 
 @asynccontextmanager
@@ -65,10 +90,10 @@ def create_application() -> FastAPI:
         redoc_url="/redoc"
     )
     
-    # CORS middleware
+    # CORS middleware - use explicit origins from config
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -129,6 +154,10 @@ def create_application() -> FastAPI:
 
     if frontend_path:
         app.add_middleware(SPAFallbackMiddleware, frontend_path=frontend_path)
+
+    # Security headers middleware (added LAST so it's the innermost wrapper,
+    # ensuring headers are applied to ALL responses including FileResponse from SPA fallback)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     return app
 

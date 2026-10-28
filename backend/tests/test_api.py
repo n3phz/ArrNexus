@@ -242,3 +242,149 @@ class TestSPADeepLinks:
         assert response.status_code == 404
         content_type = response.headers.get("content-type", "")
         assert "text/html" not in content_type
+
+
+class TestSecurityHeaders:
+    """Tests for security headers."""
+
+    def test_security_headers_present(self, client):
+        """Security headers are present on responses."""
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("X-Frame-Options") == "DENY"
+        assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+        assert "Permissions-Policy" in response.headers
+
+    def test_security_headers_on_spa_routes(self, client):
+        """Security headers are present on SPA routes."""
+        response = client.get("/incidents")
+        assert response.status_code == 200
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("X-Frame-Options") == "DENY"
+
+    def test_security_headers_on_api_error(self, client):
+        """Security headers are present on API error responses."""
+        response = client.get("/api/unknown")
+        assert response.status_code == 404
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("X-Frame-Options") == "DENY"
+
+
+class TestCORS:
+    """Tests for CORS configuration."""
+
+    def test_allowed_origin_works(self, client):
+        """Allowed origin can access the API."""
+        # Production origin
+        response = client.get(
+            "/api/health",
+            headers={"Origin": "https://arrnexus.neph.ovh"}
+        )
+        assert response.status_code == 200
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://arrnexus.neph.ovh"
+        assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+
+    def test_localhost_origin_works(self, client):
+        """Localhost dev origins can access the API."""
+        for origin in ["http://localhost:5173", "http://localhost:3000"]:
+            response = client.get(
+                "/api/health",
+                headers={"Origin": origin}
+            )
+            assert response.status_code == 200
+            assert response.headers.get("Access-Control-Allow-Origin") == origin
+            assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+
+    def test_disallowed_origin_rejected(self, client):
+        """Disallowed origins are not granted CORS access."""
+        response = client.get(
+            "/api/health",
+            headers={"Origin": "https://evil.com"}
+        )
+        # The request succeeds but CORS headers should not include the evil origin
+        assert response.status_code == 200
+        # With allow_credentials=True, the origin must match exactly
+        # FastAPI/Starlette will not echo back disallowed origins
+        allow_origin = response.headers.get("Access-Control-Allow-Origin")
+        assert allow_origin != "https://evil.com"
+
+    def test_preflight_allowed_origin(self, client):
+        """Preflight requests work for allowed origins."""
+        response = client.options(
+            "/api/health",
+            headers={
+                "Origin": "https://arrnexus.neph.ovh",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        assert response.status_code == 200
+        assert response.headers.get("Access-Control-Allow-Origin") == "https://arrnexus.neph.ovh"
+        assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+
+    def test_preflight_disallowed_origin(self, client):
+        """Preflight requests fail for disallowed origins."""
+        response = client.options(
+            "/api/health",
+            headers={
+                "Origin": "https://evil.com",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        # Preflight may succeed but without CORS headers for disallowed origin
+        allow_origin = response.headers.get("Access-Control-Allow-Origin")
+        assert allow_origin != "https://evil.com"
+
+
+class TestDebugMode:
+    """Tests for debug mode configuration."""
+
+    def test_debug_false_by_default(self):
+        """Debug mode is disabled by default."""
+        from backend.core.config import Settings
+        # Settings with no env file should have debug=False
+        settings = Settings()
+        assert settings.debug is False
+
+    def test_debug_can_be_enabled_explicitly(self, monkeypatch):
+        """Debug mode can be enabled via environment variable."""
+        monkeypatch.setenv("DEBUG", "true")
+        from backend.core.config import Settings
+        settings = Settings()
+        assert settings.debug is True
+        monkeypatch.delenv("DEBUG")
+
+    def test_debug_not_enabled_by_missing_env(self):
+        """Missing DEBUG env var does not enable debug mode."""
+        from backend.core.config import Settings
+        # Ensure DEBUG is not set
+        import os
+        if "DEBUG" in os.environ:
+            del os.environ["DEBUG"]
+        settings = Settings()
+        assert settings.debug is False
+
+
+class TestDefaultCredentials:
+    """Tests for default credentials handling."""
+
+    def test_qbittorrent_no_insecure_defaults(self):
+        """qBittorrent credentials default to empty strings, not insecure defaults."""
+        from backend.core.config import Settings
+        settings = Settings()
+        assert settings.qbittorrent_username == ""
+        assert settings.qbittorrent_password == ""
+        # Specifically NOT the insecure defaults
+        assert settings.qbittorrent_username != "admin"
+        assert settings.qbittorrent_password != "adminadmin"
+
+    def test_qbittorrent_credentials_from_env(self, monkeypatch):
+        """qBittorrent credentials can be set via environment."""
+        monkeypatch.setenv("QBITTORRENT_USERNAME", "myuser")
+        monkeypatch.setenv("QBITTORRENT_PASSWORD", "mypassword")
+        from backend.core.config import Settings
+        settings = Settings()
+        assert settings.qbittorrent_username == "myuser"
+        assert settings.qbittorrent_password == "mypassword"
+        monkeypatch.delenv("QBITTORRENT_USERNAME")
+        monkeypatch.delenv("QBITTORRENT_PASSWORD")

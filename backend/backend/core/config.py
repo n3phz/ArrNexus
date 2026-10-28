@@ -1,7 +1,16 @@
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, List
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def parse_cors_origins(v: Any) -> List[str]:
+    """Parse CORS origins from comma-separated string or list."""
+    if isinstance(v, str):
+        return [origin.strip() for origin in v.split(",") if origin.strip()]
+    if isinstance(v, list):
+        return v
+    return []
 
 
 class Settings(BaseSettings):
@@ -9,7 +18,13 @@ class Settings(BaseSettings):
     app_name: str = Field(default="arrnexus")
     app_version: str = Field(default="0.1.0")
     environment: str = Field(default="development")
-    debug: bool = Field(default=True)
+    debug: bool = Field(default=False)
+
+    # CORS Configuration
+    cors_origins: List[str] = Field(
+        default_factory=lambda: ["https://arrnexus.neph.ovh", "http://localhost:5173", "http://localhost:3000"],
+        validation_alias="CORS_ORIGINS"
+    )
 
     # Data directory
     data_dir: Path = Field(default=Path("/tmp/arrnexus"))
@@ -33,10 +48,10 @@ class Settings(BaseSettings):
     radarr_timeout_seconds: int = Field(default=10)
     radarr_verify_tls: bool = Field(default=True)
 
-    # qBittorrent Configuration
+    # qBittorrent Configuration - no insecure defaults
     qbittorrent_url: str = Field(default="http://localhost:8080")
-    qbittorrent_username: str = Field(default="admin")
-    qbittorrent_password: str = Field(default="adminadmin")
+    qbittorrent_username: str = Field(default="")
+    qbittorrent_password: str = Field(default="")
     qbittorrent_timeout_seconds: int = Field(default=10)
     qbittorrent_verify_tls: bool = Field(default=True)
 
@@ -57,6 +72,11 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def validate_cors_origins(cls, v: Any) -> List[str]:
+        return parse_cors_origins(v)
 
     @field_validator("data_dir", mode="before")
     @classmethod

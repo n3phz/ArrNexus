@@ -122,10 +122,18 @@ def mock_settings():
         settings.radarr_timeout_seconds = 10
         settings.radarr_verify_tls = True
         settings.qbittorrent_url = "http://localhost:8080"
-        settings.qbittorrent_username = "admin"
-        settings.qbittorrent_password = "password"
+        settings.qbittorrent_username = ""
+        settings.qbittorrent_password = ""
         settings.qbittorrent_timeout_seconds = 10
         settings.qbittorrent_verify_tls = True
+        settings.prowlarr_url = "http://localhost:9696"
+        settings.prowlarr_api_key = ""
+        settings.prowlarr_timeout_seconds = 10
+        settings.prowlarr_verify_tls = True
+        settings.guardarr_url = "http://localhost:8000"
+        settings.guardarr_api_key = ""
+        settings.guardarr_timeout_seconds = 10
+        settings.guardarr_verify_tls = True
         settings.data_dir = Path(tempfile.mkdtemp())
         settings.database_url = f"sqlite:///{tempfile.mktemp()}.db"
         settings.poll_interval_seconds = 30
@@ -133,6 +141,7 @@ def mock_settings():
         settings.app_name = "arrnexus"
         settings.app_version = "0.1.0"
         settings.environment = "test"
-        settings.debug = True
+        settings.debug = False
+        settings.cors_origins = ["https://arrnexus.neph.ovh", "http://localhost:5173", "http://localhost:3000"]
         mock.return_value = settings
         yield mock
